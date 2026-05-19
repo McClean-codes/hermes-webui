@@ -3721,6 +3721,18 @@ def handle_get(handler, parsed) -> bool:
                     _all_msgs = merge_session_messages_append_only(_metadata_sidecar, state_db_messages)
             if not load_messages:
                 _summary_message_count = len(_all_msgs)
+                if _summary_message_count == 0:
+                    # Legacy session with no loaded sidecar and no state.db summary —
+                    # fall back to the persisted metadata count from session JSON.
+                    # See PR #2605 (LumenYoung): without this, the metadata poll
+                    # returns 0 and the active-session external-refresh signal
+                    # never trips on legacy sessions.
+                    try:
+                        metadata_count = getattr(s, "_metadata_message_count", None)
+                        if metadata_count is not None:
+                            _summary_message_count = max(0, int(metadata_count))
+                    except (TypeError, ValueError):
+                        pass
                 try:
                     _summary_last_message_at = max(
                         float((m or {}).get("timestamp") or 0)

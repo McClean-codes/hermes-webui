@@ -436,7 +436,14 @@ class Session:
         self.read_only = bool(kwargs.get('read_only', False))
         self.enabled_toolsets = enabled_toolsets  # List[str] or None — per-session toolset override
         self.composer_draft = composer_draft if isinstance(composer_draft, dict) else {}
-        self._metadata_message_count = None
+        raw_message_count = kwargs.get('message_count')
+        parsed_message_count = None
+        if raw_message_count is not None:
+            try:
+                parsed_message_count = int(raw_message_count)
+            except (TypeError, ValueError):
+                parsed_message_count = None
+        self._metadata_message_count = parsed_message_count if parsed_message_count is not None and parsed_message_count >= 0 else None
 
     @property
     def path(self):
@@ -601,7 +608,19 @@ class Session:
             parsed['messages'] = []
             parsed['tool_calls'] = []
             session = cls(**parsed)
-            session._metadata_message_count = _lookup_index_message_count(sid)
+            metadata_message_count = _lookup_index_message_count(sid)
+            if metadata_message_count is None:
+                raw_count = parsed.get('message_count')
+                if isinstance(raw_count, int) and raw_count >= 0:
+                    metadata_message_count = raw_count
+                else:
+                    try:
+                        parsed_count = int(raw_count)
+                    except (TypeError, ValueError):
+                        parsed_count = None
+                    if parsed_count is not None and parsed_count >= 0:
+                        metadata_message_count = parsed_count
+            session._metadata_message_count = metadata_message_count
             # Mark this session as a metadata-only stub. save() refuses to write
             # such a session because doing so would atomically replace the
             # on-disk JSON with messages=[], wiping the conversation. Any
