@@ -1018,6 +1018,42 @@ def _clear_stale_stream_state(session) -> bool:
         stream_alive = stream_id in STREAMS
     if stream_alive:
         return False
+    try:
+        from api import config as _live_config
+        with _live_config.ACTIVE_RUNS_LOCK:
+            worker_alive = stream_id in (_live_config.ACTIVE_RUNS or {})
+    except Exception:
+        worker_alive = False
+    if worker_alive:
+        logger.debug(
+            "_clear_stale_stream_state: stream %s for session %s missing SSE channel "
+            "but worker bookkeeping is still active; deferring stale cleanup",
+            stream_id,
+            getattr(session, "session_id", "?"),
+        )
+        return False
+    grace_seconds = 30.0
+    try:
+        from api.models import _REPAIR_STALE_PENDING_GRACE_SECONDS
+        grace_seconds = float(_REPAIR_STALE_PENDING_GRACE_SECONDS)
+        pending_started_at = getattr(session, "pending_started_at", None)
+        pending_age = time.time() - float(pending_started_at) if pending_started_at else None
+    except Exception:
+        pending_age = None
+    if (
+        getattr(session, "pending_user_message", None)
+        and pending_age is not None
+        and pending_age < grace_seconds
+    ):
+        logger.debug(
+            "_clear_stale_stream_state: stream %s for session %s missing SSE channel "
+            "but pending turn is %.1fs old; waiting for %.1fs stale-repair grace",
+            stream_id,
+            getattr(session, "session_id", "?"),
+            pending_age,
+            grace_seconds,
+        )
+        return False
 
     # ── #1558 P0 safety: if we were handed a metadata-only stub, reload the
     # full session before touching persisted state. The original
