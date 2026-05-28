@@ -2155,7 +2155,7 @@ function attachLiveStream(activeSid, streamId, uploaded=[], options={}){
       // If the user has switched to a different session, don't attempt to
       // reconnect — the old stream's EventSource was closed intentionally
       // during session switch and reconnecting would leak a background stream.
-      if(!_isSessionActivelyViewed(activeSid)) return;
+      if(!_isSessionCurrentPane(activeSid)) return;
       if(_terminalStateReached || _streamFinalized){
         return;
       }
@@ -3147,7 +3147,8 @@ function startClarifyPolling(sid) {
   });
 
   _clarifyEventSource.onerror = function() {
-    stopClarifyPolling();
+    if (_clarifyEventSource) { try { _clarifyEventSource.close(); } catch(_){} _clarifyEventSource = null; }
+    if (_clarifyHealthTimer) { clearInterval(_clarifyHealthTimer); _clarifyHealthTimer = null; }
     _startClarifyFallbackPoll(sid);
   };
 
@@ -3177,6 +3178,7 @@ function startClarifyPolling(sid) {
 }
 
 function _startClarifyFallbackPoll(sid) {
+  _clarifyPollingSessionId = sid || null;
   _clarifyFallbackTimer = setInterval(async () => {
     if (!S.session || S.session.session_id !== sid) {
       stopClarifyPolling(); _hideClarifyCardIfOwner(sid, true, 'session'); return;

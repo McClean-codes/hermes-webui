@@ -1385,24 +1385,17 @@ def _detect_title_language(text: str) -> str:
         return ''
     german_markers = {
         'warum', 'werden', 'wird', 'wurde', 'hier', 'nicht', 'mehr', 'alte', 'alten',
-        'bilder', 'angezeigt', 'session', 'prüfe', 'ich', 'die', 'der', 'das', 'den',
-        'und', 'oder', 'mit', 'für', 'von', 'zu', 'ist', 'sind', 'bitte', 'kannst',
+        'bilder', 'angezeigt', 'prüfe', 'ich', 'und', 'oder', 'mit', 'für', 'von',
+        'zu', 'ist', 'sind', 'bitte', 'kannst',
     }
     tokens = re.findall(r'[A-Za-zÀ-ÖØ-öø-ÿ]+', s)
     german_hits = sum(1 for tok in tokens if tok in german_markers)
-    if re.search(r'[äöüß]', s) or german_hits >= 2:
+    if re.search(r'[äöüß]', s) or german_hits >= 3:
         return 'de'
     return ''
 
 
 def _title_prompt_language_rule(user_text: str) -> str:
-    lang = _detect_title_language(user_text)
-    if lang == 'de':
-        return (
-            "Match the language of the user question.\n"
-            "If the user writes German, output a German title.\n"
-            "German good: Alte Session Bilder, WebUI Attachment-Pfade, Kontextkompression Status.\n"
-        )
     return "Match the language of the user question.\n"
 
 
@@ -1869,13 +1862,6 @@ def _fallback_title_from_exchange(user_text: str, assistant_text: str) -> Option
     assistant_text = re.sub(r'\s+', ' ', assistant_text).strip()
     combined = f"{user_text} {assistant_text}".strip().lower()
     combined_raw = f"{user_text} {assistant_text}".strip()
-    source_lang = _detect_title_language(user_text)
-
-    if source_lang == 'de' and 'bilder' in combined and 'session' in combined:
-        if 'alt' in combined or 'alte' in combined or 'alten' in combined:
-            return 'Alte Session Bilder'
-        return 'Session Bilder'
-
     def _contains_latin(text: str) -> bool:
         return bool(re.search(r'[A-Za-z]', text or ''))
 

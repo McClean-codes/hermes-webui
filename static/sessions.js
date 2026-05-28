@@ -455,6 +455,8 @@ async function newSession(flash, options={}){
   _newSessionInFlight=(async()=>{
     updateQueueBadge();
     S.toolCalls=[];
+    _messagesTruncated=false;
+    _oldestIdx=0;
     clearLiveToolCards();
     // One-shot profile-switch workspace: applied to the first new session after a profile
     // switch, then cleared.  Use a dedicated flag so S._profileDefaultWorkspace (the

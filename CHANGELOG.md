@@ -3,6 +3,28 @@
 
 ## [Unreleased]
 
+## [v0.51.153] — 2026-05-28 — Release DY (stage-batch35 — 11-PR low-risk cleanup: title-language + clarify SSE + upload filename + discoverability + SSE reconnect + gateway image + docker docs)
+
+### Changed
+
+- Local fallback title generation no longer has a German-only `Session Bilder` special case; it now uses the same generic topic extraction path as other fallback titles. (Refs #3040)
+- Title-generation prompts now use the same language-neutral "match the user language" instruction for every locale instead of adding German-only exemplars. (Refs #3040)
+- Session discoverability audit findings for stale persisted WebUI-as-CLI flags now report whether an API-visible lineage representative already covers the hidden snapshot, including the representative session id in JSON and Markdown output.
+
+### Fixed
+
+- Title-language detection no longer treats common English tech/jargon text such as "session die" or DAS/DER references as German just because of shared tokens. (Refs #3040)
+- Clarify prompt SSE fallback polling now preserves its owner session id, matching approval polling behavior so terminal events from another session cannot stop the active clarify fallback poller.
+- Duplicate chat uploads now report the actual stored filename in `/api/upload` responses, so suffixed files such as `photo-1.png` do not appear under the original basename in WebUI attachment metadata.
+- Visible but unfocused chat windows now still attempt the immediate SSE reconnect for the current session; only a real session switch skips the reconnect path. (Refs #3040)
+- Gateway-backed WebUI chat now forwards current-turn image attachments as OpenAI-style multimodal `image_url` parts when native image input is enabled, matching the legacy WebUI runtime's image handoff.
+- New chat sessions reset `_messagesTruncated` / `_oldestIdx` so a fresh conversation never displays the stale "Scroll up or click to load older messages" indicator inherited from a previously-paginated session.
+- `openai-codex` reasoning-effort resolution now lets the existing `models.dev` metadata pass set the supported levels (including `xhigh`) instead of being silently clipped through the Copilot model heuristic.
+
+### Documentation
+
+- Clarify two Docker onboarding traps: `sudo docker compose` can mount `/root/.hermes` instead of the user's Hermes home on Linux, and Linux Docker Engine users should use a `host-gateway` alias such as `api.local` for host-local model servers instead of configuring `localhost` inside the container. (#3006, #3012)
+
 ## [v0.51.152] — 2026-05-28 — Release DX (stage-batch34 — single-PR optional gateway-backed browser chat)
 
 ### Added

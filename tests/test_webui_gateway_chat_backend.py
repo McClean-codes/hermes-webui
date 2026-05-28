@@ -1,4 +1,6 @@
 from collections import OrderedDict
+import base64
+import json
 
 import api.gateway_chat as gateway_chat
 import api.models as models
@@ -117,3 +119,56 @@ def test_gateway_chat_worker_translates_sse_and_persists_session(tmp_path, monke
     assert captured["headers"]["X-hermes-session-id"] == s.session_id
     assert captured["headers"]["X-hermes-session-key"] == f"webui:{s.session_id}"
     assert '"stream": true' in captured["body"]
+
+
+def test_gateway_chat_worker_forwards_image_attachments_as_multimodal_parts(tmp_path, monkeypatch):
+    session_dir = tmp_path / "sessions"
+    session_dir.mkdir()
+    monkeypatch.setattr(models, "SESSION_DIR", session_dir)
+    monkeypatch.setattr(models, "SESSION_INDEX_FILE", session_dir / "_index.json")
+    monkeypatch.setattr(models, "SESSIONS", OrderedDict())
+
+    image_bytes = base64.b64decode(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII="
+    )
+    image_path = tmp_path / "photo.png"
+    image_path.write_bytes(image_bytes)
+    captured = {}
+
+    class FakeResponse:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def __iter__(self):
+            yield b'data: {"choices":[{"delta":{"content":"saw it"}}]}\n\n'
+            yield b'data: [DONE]\n\n'
+
+    def fake_urlopen(req, timeout=0):
+        captured["body"] = json.loads(req.data.decode("utf-8"))
+        return FakeResponse()
+
+    monkeypatch.setenv("HERMES_WEBUI_GATEWAY_BASE_URL", "http://gateway.local")
+    monkeypatch.setattr(gateway_chat.urllib.request, "urlopen", fake_urlopen)
+
+    s = new_session()
+    stream_id = "stream-gateway-image-test"
+    s.active_stream_id = stream_id
+    s.save()
+    STREAMS[stream_id] = create_stream_channel()
+
+    gateway_chat._run_gateway_chat_streaming(
+        s.session_id,
+        "What is in this image?",
+        "test-model",
+        str(tmp_path),
+        stream_id,
+        [{"path": str(image_path), "mime": "image/png", "is_image": True}],
+    )
+
+    content = captured["body"]["messages"][0]["content"]
+    assert content[0] == {"type": "text", "text": "What is in this image?"}
+    assert content[1]["type"] == "image_url"
+    assert content[1]["image_url"]["url"].startswith("data:image/png;base64,")

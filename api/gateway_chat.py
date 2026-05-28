@@ -202,10 +202,19 @@ def _run_gateway_chat_streaming(
             # Scope Gateway long-term continuity to this WebUI conversation
             # without exposing the browser's auth cookie or CSRF material.
             headers["X-Hermes-Session-Key"] = f"webui:{session_id}"
+        message_content: Any = str(msg_text or "")
+        if attachments:
+            try:
+                from api.streaming import _build_native_multimodal_message
+
+                message_content = _build_native_multimodal_message("", str(msg_text or ""), attachments, str(workspace), cfg=cfg)
+            except Exception:
+                logger.debug("Failed to build gateway multimodal attachment payload", exc_info=True)
+                message_content = str(msg_text or "")
         body = {
             "model": model or "default",
             "stream": True,
-            "messages": [{"role": "user", "content": str(msg_text or "")}],
+            "messages": [{"role": "user", "content": message_content}],
         }
         if model_provider:
             body["provider"] = model_provider
