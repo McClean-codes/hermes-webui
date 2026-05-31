@@ -465,6 +465,46 @@ class TestMediaEndpointIntegration(unittest.TestCase):
         )
         self.assertIn(status, {403, 404})
 
+    def test_webui_state_secret_files_denied(self):
+        """#3234: /api/media must hard-deny WebUI state/secret files even though
+        they live under an allowed root (the whole Hermes home is allowed).
+
+        An authenticated session rendering attacker-influenced agent output that
+        emits a file://  or MEDIA: link to settings.json / state.db / auth.json
+        must NOT be able to fetch it through /api/media.
+        """
+        state_dir = pathlib.Path(TEST_STATE_DIR)
+        state_dir.mkdir(parents=True, exist_ok=True)
+        # settings.json by name (deny-by-filename)
+        settings = state_dir / "settings.json"
+        settings.write_text('{"secret":"value"}', encoding="utf-8")
+        try:
+            _, status, _ = self._get(
+                "/api/media?path=" + urllib.request.quote(str(settings.resolve()))
+            )
+            self.assertEqual(
+                status, 403,
+                f"settings.json under the state dir must be denied, got {status}",
+            )
+        finally:
+            settings.unlink(missing_ok=True)
+
+        # a file inside the sessions/ state subdir (deny-by-dir)
+        sess_dir = state_dir / "sessions"
+        sess_dir.mkdir(parents=True, exist_ok=True)
+        sess_file = sess_dir / "abc123.json"
+        sess_file.write_text('{"messages":[]}', encoding="utf-8")
+        try:
+            _, status, _ = self._get(
+                "/api/media?path=" + urllib.request.quote(str(sess_file.resolve()))
+            )
+            self.assertEqual(
+                status, 403,
+                f"files under the sessions/ state subdir must be denied, got {status}",
+            )
+        finally:
+            sess_file.unlink(missing_ok=True)
+
     def test_health_check_still_works(self):
         """Sanity: server is up and /health works."""
         body, status, _ = self._get("/health")

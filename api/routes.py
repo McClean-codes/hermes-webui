@@ -8083,6 +8083,38 @@ def _handle_media(handler, parsed):
         target,
         _INLINE_IMAGE_TYPES,
     )
+
+    # Hard deny WebUI state + secret/config files even when they fall under an
+    # allowed root (the whole Hermes home is allowed, and the state dir lives
+    # inside it). Without this, an authenticated session rendering attacker-
+    # influenced agent output that emits a file:// / MEDIA: link to one of these
+    # paths could fetch it through /api/media. This guard runs BEFORE the
+    # allow/serve decision so it covers every entry path (bare file:// URLs,
+    # markdown anchors, MEDIA: tokens, and session-token grants). See #3234.
+    _DENY_FILENAMES = {
+        "settings.json", "state.db", "auth.json", "auth.lock",
+        "config.yaml", "config.yml", ".env", ".signing_key",
+        ".pbkdf2_key", ".sessions.json",
+    }
+    _state_dir = None
+    try:
+        from api.config import STATE_DIR as _STATE_DIR
+        _state_dir = Path(_STATE_DIR).resolve()
+    except Exception:
+        _state_dir = None
+    _deny_dirs = [d for d in (
+        _state_dir,
+        (_HERMES_HOME / "sessions").resolve(),
+        (_HERMES_HOME / "memories").resolve(),
+        (_HERMES_HOME / "profiles").resolve(),
+    ) if d is not None]
+    _denied = (
+        target.name in _DENY_FILENAMES
+        or any(_path_is_within_root(target, d) for d in _deny_dirs)
+    )
+    if _denied:
+        return bad(handler, "Path not in allowed location", 403)
+
     if not within_allowed and not session_media_allowed:
         return bad(handler, "Path not in allowed location", 403)
 
