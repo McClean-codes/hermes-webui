@@ -992,6 +992,25 @@
   .session-attention-indicator{position:absolute;right:6px;top:50%;transform:translateY(-50%);width:26px;height:26px;z-index:1;pointer-events:none;transition:opacity .15s ease,visibility .15s ease;}
   .session-item:hover .session-attention-indicator,.session-item:focus-within .session-attention-indicator,.session-item.menu-open .session-attention-indicator{opacity:0;visibility:hidden;}
   .session-state-indicator.is-streaming,.session-state-indicator.is-unread{visibility:visible;}
+  /* Attention state dot: NO text badge — the right-side status dot itself
+     carries the attention color (red=approval, amber/warning=clarify), and the
+     row keeps its colored left rail + tinted background. Visible even when the
+     session is not streaming/unread. Theme-driven via --error / --warning.
+     (Restored during #3401 integration — the live-to-final refactor had dropped
+     this block, leaving idle approval/clarify dots invisible.) */
+  .session-state-indicator.is-attention-approval,
+  .session-state-indicator.is-attention-clarify,
+  .session-state-indicator.is-attention-generic{visibility:visible;}
+  .session-state-indicator.is-attention-approval{color:var(--error);}
+  .session-state-indicator.is-attention-clarify,
+  .session-state-indicator.is-attention-generic{color:var(--warning);}
+  .session-state-indicator.is-attention-approval:not(.is-streaming):not(.is-unread)::before,
+  .session-state-indicator.is-attention-clarify:not(.is-streaming):not(.is-unread)::before,
+  .session-state-indicator.is-attention-generic:not(.is-streaming):not(.is-unread)::before{
+    content:"";display:block;width:8px;height:8px;border-radius:50%;background:currentColor;
+  }
+  /* Approval is the more urgent state — gently pulse its dot. */
+  .session-state-indicator.is-attention-approval:not(.is-streaming):not(.is-unread)::before{animation:sessionAttentionPulse 1.6s ease-in-out infinite;}
   .session-state-indicator::before{content:"";display:block;flex-shrink:0;}
   .session-state-indicator.is-streaming::before{
     width:100%;

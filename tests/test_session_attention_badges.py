@@ -148,19 +148,27 @@ def test_session_sidebar_renders_attention_badge_and_semantic_classes():
     assert ".session-item.attention-clarify" in style_css
     # The text-badge styles were removed; the dot now carries the color.
     assert ".session-attention-badge" not in style_css
-    # #3401 integration: the colored attention styling is driven by the
-    # `.session-item.attention-{approval,clarify}` parent rules (inset rail + tint);
-    # the dot gets `is-attention-{approval,clarify,generic}` classes from sessions.js
-    # (renderSessionList). The approval dot additionally has an indicator-level rule
-    # to suppress its pulse animation. clarify/generic intentionally inherit the
-    # base indicator color via the parent .session-item rule rather than a dedicated
-    # indicator selector, so assert the parent rules + the JS class application
-    # rather than an indicator-level `.is-attention-clarify` rule the PR doesn't emit.
-    assert ".session-state-indicator.is-attention-approval" in style_css
+    # The right-side status dot itself carries the attention color. sessions.js
+    # tags the indicator with is-attention-{approval,clarify,generic}; the CSS must
+    # (a) make those classes visible and (b) color them, or the dot silently
+    # disappears for idle approval/clarify sessions. (#3401 integration: the
+    # live-to-final refactor briefly dropped this block — Codex re-gate caught it,
+    # restored. These assertions guard against that regression recurring.)
     assert "is-attention-clarify" in sessions_js, (
-        "renderSessionList must tag the state indicator with is-attention-clarify "
-        "so the clarify attention dot is colored."
+        "renderSessionList must tag the state indicator with is-attention-clarify."
     )
+    assert ".session-state-indicator.is-attention-approval" in style_css
+    assert ".session-state-indicator.is-attention-clarify" in style_css
+    assert ".session-state-indicator.is-attention-generic{visibility:visible;}" in style_css, (
+        "idle attention dots must be visibility:visible, not hidden."
+    )
+    assert ".session-state-indicator.is-attention-approval{color:var(--error);}" in style_css, (
+        "approval attention dot must be error-colored."
+    )
+    assert "color:var(--warning);}" in style_css, (
+        "clarify/generic attention dot must be warning-colored."
+    )
+    # The colored row rail + tint (parent rule) must also remain.
     assert ".session-item.attention-clarify{box-shadow:inset 3px 0 0 var(--warning)" in style_css, (
         "clarify attention must render the warning-colored inset rail on the session row."
     )
