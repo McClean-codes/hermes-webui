@@ -210,8 +210,16 @@ def _session_visible_to_active_profile(session_profile, handler=None) -> bool:
     /api/sessions, even when the request has no hermes_profile cookie and the
     process-level active profile is the default/root profile. Direct unit-callers
     without a request handler keep the historical metadata-load behavior.
+
+    Internal callers that re-dispatch a handler under an already-validated and
+    profile-scoped context (e.g. the manual-compression worker, which guards the
+    external /compress/start entry point and then applies the session's own
+    profile env before re-invoking _handle_session_compress) may set
+    ``handler._hermes_internal_trusted = True`` to bypass the re-check.
     """
     if handler is None:
+        return True
+    if getattr(handler, "_hermes_internal_trusted", False):
         return True
     active_profile = _get_active_profile_name()
     if not isinstance(session_profile, str):
@@ -14422,6 +14430,11 @@ class _ManualCompressionMemoryHandler:
         self.wfile = io.BytesIO()
         self.status = None
         self.sent_headers = {}
+        # The external /compress/start route already enforced the active-profile
+        # boundary, and the worker applies the session's own profile env before
+        # re-invoking _handle_session_compress. Mark this synthetic handler trusted
+        # so the in-handler guard doesn't re-reject under the worker's scoped env.
+        self._hermes_internal_trusted = True
 
     def send_response(self, status):
         self.status = status
