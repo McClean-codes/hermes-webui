@@ -3,17 +3,9 @@
 
 ## [Unreleased]
 
-## [v0.51.522] — 2026-06-19 — Release SG (live model lookups never forward another provider's key)
+### Fixed
 
-### Security
-
-- **`/api/models/live` no longer forwards the active provider's API key to a different provider's endpoint (#4488).** When a live-model lookup for provider X had no provider-scoped `providers.X.api_key`, the OpenAI-compat fallback used the top-level `model.api_key` unconditionally — which may belong to a different provider Y — and sent it as a bearer token to X's `{endpoint}/models` URL, leaking Y's credential to X's server. The fallback is now gated on the active `model.provider` resolving (via the same alias normalization) to the requested provider; on a mismatch no key is used, no request is made, and the static catalog is returned. Thanks @Hinotoi-agent.
-
-## [v0.51.521] — 2026-06-19 — Release SF (imported sessions scoped to the active profile)
-
-### Security
-
-- **Sessions imported under a named profile are now owned by that profile, not by root/default (#4489).** `/api/session/import` validates the workspace under the request's active profile but built the new `Session` with no `profile`, so it defaulted to `None` (root/default-owned). A default/root request could then export the imported transcript or use its session id to read files from the named-profile workspace — a cross-profile leak. The import now stamps `profile=get_active_profile_name()`, so the boundary check denies (404) a mismatched profile. The default profile keeps its existing ownership semantics. Thanks @Hinotoi-agent.
+- Sidebar lineage rows now keep their running spinner, latest activity ordering, and unread/attention state when the active continuation is hidden as an archived lineage child. Pin/unpin actions also update the sidebar ordering immediately before the next server refresh.
 
 ## [v0.51.520] — 2026-06-19 — Release SE (recover from untracked-file update collisions)
 
