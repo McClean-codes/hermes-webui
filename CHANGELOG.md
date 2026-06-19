@@ -3,6 +3,12 @@
 
 ## [Unreleased]
 
+## [v0.51.507] — 2026-06-19 — Release RR (jump-to-question button stays usable on mobile)
+
+### Fixed
+
+- **The "jump to question" button is no longer hidden on mobile (#3851).** On narrow screens (≤600px) the button was fully `display:none`, so phone users couldn't jump to the start of a response. It now renders as a compact icon-only button (the arrow stays, only the text label is hidden) instead of disappearing. Thanks @rodboev.
+
 ## [v0.51.506] — 2026-06-18 — Release RQ (harden destructive workspace Git paths against repo-local execution)
 
 ### Security
