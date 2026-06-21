@@ -1499,6 +1499,7 @@
           Install <span class="caret" aria-hidden="true">▾</span>
         </button>
         <ul class="dropdown" role="menu">
+          <li role="none"><a role="menuitem" href="setup/">&#11088; Setup guide &mdash; all platforms</a></li>
           <li role="none"><a role="menuitem" href="#install">Install</a></li>
           <li role="none"><a role="menuitem" href="#hosting">Hosting</a></li>
         </ul>
@@ -1536,6 +1537,7 @@
   <a href="memory/" onclick="closeMobileMenu()">&#129761; Memory</a>
   <div style="height:1px;background:var(--border);margin:8px 0;"></div>
   <div style="font-size:0.68rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);padding:4px 0 2px;">Install</div>
+  <a href="setup/" onclick="closeMobileMenu()" style="color:var(--accent)">&#11088; Setup guide &mdash; all platforms</a>
   <a href="#install" onclick="closeMobileMenu()">Install</a>
   <a href="#hosting" onclick="closeMobileMenu()">Hosting</a>
   <div style="height:1px;background:var(--border);margin:8px 0;"></div>
@@ -2143,6 +2145,15 @@ docker run -d \
     <div class="container">
       <p class="section-label">Quick start</p>
       <h2 class="section-title">Get started in 60 seconds</h2>
+
+      <a href="setup/" style="display:flex;align-items:center;gap:14px;background:var(--accent-glow,rgba(240,165,0,0.12));border:1px solid var(--accent);border-radius:12px;padding:16px 20px;margin:8px 0 28px;text-decoration:none;color:var(--text-primary);transition:transform 0.15s;flex-wrap:wrap;">
+        <span style="font-size:1.6rem;line-height:1;">&#11088;</span>
+        <span style="flex:1;min-width:220px;">
+          <span style="display:block;font-weight:700;font-size:1.02rem;">Want it on your phone, desktop, or every device?</span>
+          <span style="display:block;color:var(--text-secondary);font-size:0.9rem;">Read the full cross-platform setup guide &mdash; run the server once, then get a native app on Web, Windows, Linux, macOS, iOS &amp; Android.</span>
+        </span>
+        <span style="color:var(--accent);font-weight:700;white-space:nowrap;">Open setup guide &#8594;</span>
+      </a>
 
       <div class="install-layout">
         <div>

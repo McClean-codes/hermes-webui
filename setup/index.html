@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <script>
+    // Canonical URL: strip trailing index.html so links always show the clean path
+    (function(){
+      var p = window.location.pathname;
+      if (p.endsWith('/index.html')) {
+        var clean = p.slice(0, p.length - 'index.html'.length);
+        window.history.replaceState(null, '', clean + window.location.search + window.location.hash);
+      }
+    })();
+  </script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Set up Hermes WebUI — on every device</title>
+<meta name="description" content="The complete setup guide for Hermes WebUI: run the server once, then get a beautiful client app on web, Windows, Linux, macOS, iOS, and Android.">
+<meta property="og:title" content="Set up Hermes WebUI — on every device">
+<meta property="og:description" content="Run the server once, then get a native client on every device. The full cross-platform setup guide for Hermes WebUI.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://get-hermes.ai/setup/">
+<meta property="og:image" content="https://get-hermes.ai/images/ui-hero.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Set up Hermes WebUI — on every device">
+<meta name="twitter:description" content="Run the server once, then get a native client on every device.">
+<meta name="twitter:image" content="https://get-hermes.ai/images/ui-hero.png">
+<style>
+  :root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-tertiary: #21262d;
+    --bg-card: #161b22;
+    --border: #30363d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent: #f0a500;
+    --accent-dim: #c88800;
+    --accent-glow: rgba(240,165,0,0.15);
+    --green: #3fb950;
+    --blue: #58a6ff;
+    --purple: #bc8cff;
+    --red: #f85149;
+    --nav-height: 64px;
+  }
+  [data-theme="light"] nav { background: rgba(246, 248, 250, 0.95); }
+  [data-theme="light"] {
+    --bg-primary: #ffffff;
+    --bg-secondary: #f6f8fa;
+    --bg-tertiary: #eaeef2;
+    --bg-card: #ffffff;
+    --border: #d0d7de;
+    --text-primary: #1f2328;
+    --text-secondary: #656d76;
+    --text-muted: #9198a1;
+    --accent: #c07800;
+    --accent-dim: #9a6200;
+    --accent-glow: rgba(192,120,0,0.12);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  a { color: var(--accent); }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; height: var(--nav-height);
+    background: rgba(13, 17, 23, 0.92);
+    border-bottom: 1px solid var(--border);
+    backdrop-filter: blur(12px);
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 24px; z-index: 100;
+  }
+  .nav-logo { font-size: 1.1rem; font-weight: 700; color: var(--accent); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+  .nav-logo span { font-size: 1.4rem; }
+  .nav-right { display: flex; align-items: center; gap: 12px; }
+  .nav-back { color: var(--text-secondary); text-decoration: none; font-size: 0.85rem; display: flex; align-items: center; gap: 4px; transition: color 0.2s; }
+  .nav-back:hover { color: var(--text-primary); }
+  #theme-toggle { background: none; border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 1rem; color: var(--text-primary); transition: border-color 0.2s; }
+  #theme-toggle:hover { border-color: var(--accent); }
+  .btn-cta { background: var(--accent); color: #000; border: none; border-radius: 8px; padding: 8px 18px; font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; transition: opacity 0.2s; }
+  .btn-cta:hover { opacity: 0.85; }
+
+  .hamburger { display: none; flex-direction: column; gap: 5px; background: none; border: 1px solid var(--border); border-radius: 6px; padding: 9px 8px; cursor: pointer; transition: border-color 0.15s; flex-shrink: 0; }
+  .hamburger:hover { border-color: var(--accent); }
+  .hamburger span { display: block; width: 20px; height: 2px; background: var(--text-secondary); border-radius: 2px; transition: transform 0.2s, opacity 0.2s; }
+  .hamburger.open span:nth-child(1) { transform: translateY(7px) rotate(45deg); }
+  .hamburger.open span:nth-child(2) { opacity: 0; }
+  .hamburger.open span:nth-child(3) { transform: translateY(-7px) rotate(-45deg); }
+  #setup-mobile-menu {
+    display: none; position: fixed; top: var(--nav-height); left: 0; right: 0;
+    background: var(--bg-secondary); border-bottom: 1px solid var(--border);
+    padding: 16px 24px; z-index: 999; flex-direction: column; gap: 4px;
+  }
+  #setup-mobile-menu.open { display: flex; }
+  #setup-mobile-menu a { color: var(--text-secondary); font-size: 0.95rem; font-weight: 500; padding: 10px 12px; border-radius: 6px; transition: color 0.15s, background 0.15s; text-decoration: none; }
+  #setup-mobile-menu a:hover { color: var(--text-primary); background: var(--bg-tertiary); }
+  #setup-mobile-menu a.accent { color: var(--accent); }
+
+  .wrap { max-width: 920px; margin: 0 auto; padding: 0 24px; }
+
+  /* HERO */
+  .hero { text-align: center; padding: 72px 24px 40px; position: relative; overflow: hidden; }
+  .hero::before {
+    content: ''; position: absolute; top: -40%; left: 50%; transform: translateX(-50%);
+    width: 680px; height: 680px; background: radial-gradient(circle, var(--accent-glow) 0%, transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+  .hero > * { position: relative; z-index: 1; }
+  .hero-badge {
+    display: inline-block; font-size: 0.78rem; font-weight: 600; letter-spacing: 0.04em;
+    text-transform: uppercase; color: var(--accent); background: var(--accent-glow);
+    border: 1px solid var(--accent-dim); border-radius: 999px; padding: 5px 14px; margin-bottom: 22px;
+  }
+  .hero h1 { font-size: clamp(2rem, 5vw, 3.1rem); font-weight: 800; line-height: 1.1; letter-spacing: -0.02em; margin-bottom: 18px; }
+  .hero h1 em { color: var(--accent); font-style: normal; }
+  .hero-sub { font-size: clamp(1.02rem, 2.2vw, 1.22rem); color: var(--text-secondary); max-width: 660px; margin: 0 auto 14px; }
+
+  /* TWO-STEP FLOW STRIP */
+  .flowstrip { display: flex; align-items: stretch; justify-content: center; gap: 0; flex-wrap: wrap; margin: 40px auto 8px; max-width: 760px; }
+  .flowstep {
+    flex: 1; min-width: 220px; background: var(--bg-tertiary); border: 1px solid var(--border);
+    border-radius: 14px; padding: 22px 22px; text-align: left; position: relative;
+  }
+  .flowstep .fs-num { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); }
+  .flowstep h3 { font-size: 1.12rem; margin: 6px 0 6px; }
+  .flowstep p { font-size: 0.92rem; color: var(--text-secondary); margin: 0; }
+  .flowstep .fs-emoji { font-size: 1.6rem; position: absolute; top: 18px; right: 20px; }
+  .flowarrow { display: flex; align-items: center; justify-content: center; color: var(--accent); font-size: 1.6rem; padding: 0 14px; flex-shrink: 0; }
+  @media (max-width: 620px) { .flowarrow { transform: rotate(90deg); padding: 8px 0; } }
+
+  /* SECTION */
+  .section { padding: 56px 0 8px; }
+  .section-head { margin-bottom: 26px; }
+  .step-eyebrow { font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); display: flex; align-items: center; gap: 10px; }
+  .step-eyebrow .step-dot { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; border-radius: 50%; background: var(--accent); color: #000; font-weight: 800; font-size: 0.85rem; }
+  .section h2 { font-size: clamp(1.5rem, 3.5vw, 2rem); font-weight: 800; letter-spacing: -0.01em; margin: 12px 0 8px; }
+  .section .lead { font-size: 1.02rem; color: var(--text-secondary); max-width: 700px; }
+  .section h3.sub { font-size: 1.1rem; margin: 28px 0 8px; }
+  .section p { color: var(--text-secondary); margin-bottom: 12px; }
+  .section p code, li code { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px; font-size: 0.86em; color: var(--text-primary); font-family: 'SF Mono', ui-monospace, Menlo, monospace; }
+
+  /* ARCHITECTURE EXPLAINER */
+  .archcard { background: var(--bg-tertiary); border: 1px solid var(--border); border-left: 3px solid var(--accent); border-radius: 12px; padding: 20px 22px; margin: 8px 0 4px; }
+  .archcard b { color: var(--text-primary); }
+
+  /* CODE BLOCK */
+  .code { position: relative; background: #0d1117; border: 1px solid var(--border); border-radius: 10px; margin: 10px 0 18px; overflow: hidden; }
+  [data-theme="light"] .code { background: #0d1117; }
+  .code-head { display: flex; align-items: center; justify-content: space-between; padding: 8px 14px; border-bottom: 1px solid #21262d; background: #161b22; }
+  .code-label { font-size: 0.74rem; color: #8b949e; font-family: 'SF Mono', ui-monospace, Menlo, monospace; letter-spacing: 0.02em; }
+  .code-copy { background: none; border: 1px solid #30363d; color: #8b949e; border-radius: 6px; padding: 3px 10px; font-size: 0.74rem; cursor: pointer; transition: all 0.15s; }
+  .code-copy:hover { border-color: var(--accent); color: var(--accent); }
+  .code pre { margin: 0; padding: 14px 16px; overflow-x: auto; }
+  .code code { font-family: 'SF Mono', ui-monospace, Menlo, Consolas, monospace; font-size: 0.85rem; line-height: 1.7; color: #e6edf3; white-space: pre; }
+  .code .c-cmt { color: #6e7681; }
+  .code .c-flag { color: #79c0ff; }
+  .code .c-str { color: #a5d6ff; }
+
+  /* PLATFORM GRID */
+  .your-device-banner {
+    display: none; align-items: center; gap: 10px; background: var(--accent-glow);
+    border: 1px solid var(--accent-dim); border-radius: 10px; padding: 12px 16px; margin: 4px 0 22px;
+    font-size: 0.92rem; color: var(--text-primary);
+  }
+  .your-device-banner.show { display: flex; }
+  .your-device-banner b { color: var(--accent); }
+  .platform-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; margin: 6px 0 8px; }
+  .platform-grid > * { min-width: 0; }
+  @media (max-width: 760px) { .platform-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 460px) { .platform-grid { grid-template-columns: 1fr; } }
+  .pcard {
+    display: flex; flex-direction: column; background: var(--bg-tertiary); border: 1px solid var(--border);
+    border-radius: 14px; padding: 20px; text-decoration: none; color: var(--text-primary);
+    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s; position: relative; overflow: hidden;
+  }
+  .pcard:hover { transform: translateY(-3px); border-color: var(--accent-dim); box-shadow: 0 8px 28px rgba(0,0,0,0.25); }
+  .pcard.is-you { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-dim); }
+  .pcard .p-emoji { font-size: 2rem; line-height: 1; margin-bottom: 12px; }
+  .pcard .p-name { font-size: 1.12rem; font-weight: 700; margin-bottom: 3px; }
+  .pcard .p-meta { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 14px; }
+  .pcard .p-desc { font-size: 0.9rem; color: var(--text-secondary); flex: 1; margin-bottom: 16px; }
+  .pcard .p-link { font-size: 0.88rem; font-weight: 600; color: var(--accent); display: inline-flex; align-items: center; gap: 5px; }
+  .pcard .p-badge { position: absolute; top: 14px; right: 14px; font-size: 0.66rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: #000; background: var(--accent); border-radius: 999px; padding: 3px 9px; opacity: 0; transition: opacity 0.15s; }
+  .pcard.is-you .p-badge { opacity: 1; }
+
+  /* TWO-COL OPTIONS (reachable) */
+  .opt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin: 8px 0; }
+  .opt-grid > * { min-width: 0; }
+  @media (max-width: 720px) { .opt-grid { grid-template-columns: 1fr; } }
+  .opt { background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 12px; padding: 18px 20px; }
+  .opt h4 { font-size: 1rem; margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
+  .opt .opt-tag { font-size: 0.68rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 999px; }
+  .opt .opt-tag.public { background: rgba(88,166,255,0.15); color: var(--blue); border: 1px solid rgba(88,166,255,0.3); }
+  .opt .opt-tag.private { background: rgba(63,185,80,0.15); color: var(--green); border: 1px solid rgba(63,185,80,0.3); }
+  .opt p { font-size: 0.9rem; margin-bottom: 8px; }
+
+  /* ECOSYSTEM */
+  .eco-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 8px; }
+  .eco-grid > * { min-width: 0; }
+  @media (max-width: 720px) { .eco-grid { grid-template-columns: 1fr; } }
+  .eco { display: flex; gap: 16px; background: var(--bg-tertiary); border: 1px solid var(--border); border-radius: 14px; padding: 20px; text-decoration: none; color: var(--text-primary); transition: transform 0.15s, border-color 0.15s; }
+  .eco:hover { transform: translateY(-3px); border-color: var(--accent-dim); }
+  .eco .eco-emoji { font-size: 1.9rem; line-height: 1; }
+  .eco h4 { font-size: 1.05rem; margin-bottom: 4px; }
+  .eco p { font-size: 0.88rem; color: var(--text-secondary); margin: 0; }
+  .eco .eco-link { font-size: 0.84rem; color: var(--accent); font-weight: 600; margin-top: 8px; display: inline-block; }
+
+  /* CALLOUT */
+  .callout { background: var(--accent-glow); border: 1px solid var(--accent-dim); border-radius: 12px; padding: 16px 20px; margin: 18px 0; font-size: 0.94rem; }
+  .callout b { color: var(--accent); }
+
+  /* TROUBLESHOOT */
+  .faq { border-top: 1px solid var(--border); }
+  .faq details { border-bottom: 1px solid var(--border); }
+  .faq summary { cursor: pointer; padding: 16px 4px; font-weight: 600; font-size: 0.98rem; list-style: none; display: flex; justify-content: space-between; align-items: center; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::after { content: '+'; color: var(--accent); font-size: 1.3rem; font-weight: 400; }
+  .faq details[open] summary::after { content: '−'; }
+  .faq details p { font-size: 0.92rem; padding: 0 4px 18px; margin: 0; }
+
+  /* FINAL CTA */
+  .final-cta { text-align: center; padding: 56px 24px 40px; }
+  .final-cta h2 { font-size: 1.6rem; margin-bottom: 10px; }
+  .final-cta p { color: var(--text-secondary); margin-bottom: 22px; }
+  .btn-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+  .btn-primary { background: var(--accent); color: #000; font-weight: 700; padding: 12px 26px; border-radius: 10px; text-decoration: none; font-size: 0.98rem; transition: opacity 0.15s; }
+  .btn-primary:hover { opacity: 0.88; }
+  .btn-ghost { background: var(--bg-tertiary); color: var(--text-primary); border: 1px solid var(--border); font-weight: 600; padding: 12px 26px; border-radius: 10px; text-decoration: none; font-size: 0.98rem; transition: border-color 0.15s; }
+  .btn-ghost:hover { border-color: var(--accent); }
+
+  footer { text-align: center; padding: 40px 24px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.88rem; }
+  footer a { color: var(--accent); text-decoration: none; }
+
+  @media (max-width: 640px) {
+    .hamburger { display: flex; }
+    .btn-cta { display: none; }
+    .nav-back { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="../" class="nav-logo"><span>⚡</span> Hermes</a>
+  <div class="nav-right">
+    <a href="../" class="nav-back">← <span>Back to main site</span></a>
+    <button id="theme-toggle" aria-label="Toggle theme">🌙</button>
+    <a href="https://github.com/nesquena/hermes-webui" class="btn-cta" target="_blank">GitHub →</a>
+  </div>
+  <button class="hamburger" id="setup-hamburger" aria-label="Open menu" aria-expanded="false">
+    <span></span><span></span><span></span>
+  </button>
+</nav>
+
+<div id="setup-mobile-menu">
+  <a href="../">⚡ Hermes Home</a>
+  <a href="#server">1 · Run the server</a>
+  <a href="#reach">2 · Make it reachable</a>
+  <a href="#apps">3 · Get your app</a>
+  <a href="#ecosystem">Ecosystem</a>
+  <a href="#troubleshooting">Troubleshooting</a>
+  <a href="../eli5/" class="accent">🧠 ELI5 — What is Hermes?</a>
+  <a href="../models/" class="accent">🤖 Best Models</a>
+  <a href="../community/" class="accent">🌎 Community</a>
+</div>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="hero-badge">Setup guide</div>
+  <h1>Hermes, on <em>every</em> device</h1>
+  <p class="hero-sub">Hermes WebUI is your personal Hermes backend — run it once, then reach it from a clean, native client on the web, your desktop, and your phone. A Claude- or Codex-style experience everywhere, no terminal required.</p>
+  <div class="flowstrip">
+    <a class="flowstep" href="#server" style="text-decoration:none;color:inherit">
+      <span class="fs-emoji">🚀</span>
+      <div class="fs-num">Step 1</div>
+      <h3>Run the server</h3>
+      <p>One clone, one command. This is the brain — your sessions, memory, and agent live here.</p>
+    </a>
+    <div class="flowarrow">→</div>
+    <a class="flowstep" href="#apps" style="text-decoration:none;color:inherit">
+      <span class="fs-emoji">📲</span>
+      <div class="fs-num">Step 2</div>
+      <h3>Get your app</h3>
+      <p>Install a client on each device you use and point it at your server. That's it.</p>
+    </a>
+  </div>
+</section>
+
+<!-- ARCHITECTURE -->
+<section class="section" id="how">
+  <div class="wrap">
+    <div class="archcard">
+      <p style="margin:0;color:var(--text-secondary)"><b>How it fits together.</b> Hermes WebUI is a complete Hermes backend API — one server that holds your conversations, memory, scheduled jobs, workspace, and the full power of the Hermes Agent. Every app below is a <b>client</b> that connects to that one server, so your context follows you from laptop to phone to browser. Set the server up once; add as many clients as you like.</p>
+    </div>
+  </div>
+</section>
+
+<!-- STEP 1 — SERVER -->
+<section class="section" id="server">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="step-eyebrow"><span class="step-dot">1</span> Run the server</div>
+      <h2>Stand up Hermes WebUI</h2>
+      <p class="lead">On any machine you control — macOS, Linux, or Windows via WSL2 — with <code>Python 3.11+</code> and <code>git</code>. The bootstrap finds or installs Hermes Agent for you, sets up the environment, and walks you through first-run onboarding.</p>
+    </div>
+
+    <div class="code">
+      <div class="code-head"><span class="code-label">bash — clone &amp; start</span><button class="code-copy">Copy</button></div>
+      <pre><code>git clone https://github.com/nesquena/hermes-webui.git
+cd hermes-webui
+python3 bootstrap.py</code></pre>
+    </div>
+    <p>By default the server listens on <code>127.0.0.1:8787</code> — local-only until you expose it in Step 2. Open that URL in any browser and you already have the full Web UI. To relaunch later, run <code>./start.sh</code> from the repo.</p>
+
+    <h3 class="sub">Need Hermes Agent first?</h3>
+    <p>Hermes WebUI runs on top of the <a href="https://hermes-agent.nousresearch.com/" target="_blank">Hermes Agent</a>. If it's not already installed, <code>bootstrap.py</code> offers to install it — or set it up directly:</p>
+    <div class="code">
+      <div class="code-head"><span class="code-label">bash — install Hermes Agent</span><button class="code-copy">Copy</button></div>
+      <pre><code>curl -fsSL https://raw.githubusercontent.com/NousResearch/hermes-agent/main/scripts/install.sh | bash
+source ~/.bashrc      <span class="c-cmt"># reload your shell</span>
+hermes model          <span class="c-cmt"># choose your LLM provider</span></code></pre>
+    </div>
+    <p>Full agent walkthrough: <a href="https://hermes-agent.nousresearch.com/docs/getting-started/installation" target="_blank">the Hermes installation guide →</a></p>
+
+    <h3 class="sub">Set a password before you expose it</h3>
+    <p>Auth is off by default on localhost. Before putting the server on a network (Step 2), set a password — either in the Web UI's Settings panel, or inline:</p>
+    <div class="code">
+      <div class="code-head"><span class="code-label">bash — start with a password</span><button class="code-copy">Copy</button></div>
+      <pre><code>HERMES_WEBUI_PASSWORD=<span class="c-str">your-secret</span> ./start.sh</code></pre>
+    </div>
+
+    <h3 class="sub">Verify it's up</h3>
+    <div class="code">
+      <div class="code-head"><span class="code-label">bash — health check</span><button class="code-copy">Copy</button></div>
+      <pre><code>curl http://127.0.0.1:8787/health</code></pre>
+    </div>
+    <div class="callout">🎉 <b>That's the whole server.</b> If you only ever use Hermes in a browser on the same machine, you're done — open <code>http://127.0.0.1:8787</code> and start chatting. Want it on your phone or other devices? Continue below.</div>
+  </div>
+</section>
+
+<!-- STEP 2 — REACHABLE -->
+<section class="section" id="reach">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="step-eyebrow"><span class="step-dot">2</span> Make it reachable</div>
+      <h2>Expose your server (for remote &amp; mobile clients)</h2>
+      <p class="lead">To reach the server from another device — your phone, a second laptop — give it a URL. Pick one path; both end with an address you paste into your client app. Skip this if you only use the browser on the same machine.</p>
+    </div>
+    <div class="opt-grid">
+      <div class="opt">
+        <h4>🌩️ Cloudflare Tunnel <span class="opt-tag public">Public HTTPS</span></h4>
+        <p><a href="https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/" target="_blank">Cloudflare Tunnel</a> dials out from your machine, so nothing is port-forwarded and TLS terminates at the edge — real HTTPS, anywhere.</p>
+        <div class="code">
+          <div class="code-head"><span class="code-label">bash — instant tunnel</span><button class="code-copy">Copy</button></div>
+          <pre><code>brew install cloudflared
+cloudflared tunnel --url http://localhost:8787</code></pre>
+        </div>
+        <p style="margin:0">Prints a <code>trycloudflare.com</code> URL. Your password is <b>required</b> here — the hostname is public.</p>
+      </div>
+      <div class="opt">
+        <h4>🔒 Tailscale <span class="opt-tag private">Private</span></h4>
+        <p><a href="https://tailscale.com/download" target="_blank">Tailscale</a> puts your server and devices on one private WireGuard network — nothing is exposed to the public internet. Install it on both, sign into the same tailnet, then:</p>
+        <div class="code">
+          <div class="code-head"><span class="code-label">bash — bind to the tailnet</span><button class="code-copy">Copy</button></div>
+          <pre><code>HERMES_WEBUI_HOST=0.0.0.0 HERMES_WEBUI_PASSWORD=<span class="c-str">your-secret</span> ./start.sh
+tailscale ip -4   <span class="c-cmt"># your server's 100.x address</span></code></pre>
+        </div>
+        <p style="margin:0">Your URL is <code>http://&lt;tailscale-ip&gt;:8787</code>. Plain HTTP is fine — WireGuard encrypts the wire.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- STEP 3 — APPS -->
+<section class="section" id="apps">
+  <div class="wrap">
+    <div class="section-head">
+      <div class="step-eyebrow"><span class="step-dot">3</span> Get your app</div>
+      <h2>Install a client on every device</h2>
+      <p class="lead">Each app is a thin, native client for the server you just stood up. Install it, paste your server URL, sign in with your password — and your Hermes goes with you. Use as many as you like; they all talk to the same backend.</p>
+    </div>
+
+    <div class="your-device-banner" id="device-banner">
+      <span>🎯</span><span>Looks like you're on <b id="device-name">your device</b> — we've highlighted the best app for you below.</span>
+    </div>
+
+    <div class="platform-grid">
+      <a class="pcard" data-os="web" href="https://github.com/nesquena/hermes-webui" target="_blank">
+        <span class="p-badge">Recommended</span>
+        <span class="p-emoji">🌐</span>
+        <div class="p-name">Web</div>
+        <div class="p-meta">Any browser · zero install</div>
+        <div class="p-desc">The Web UI is built into the server. Just open your server URL in any browser — desktop or mobile — and you're in. Nothing else to install.</div>
+        <span class="p-link">Open your server URL ↗</span>
+      </a>
+
+      <a class="pcard" data-os="windows" href="https://github.com/hermes-webui/hermes-desktop-rust/releases" target="_blank">
+        <span class="p-badge">Recommended</span>
+        <span class="p-emoji">🪟</span>
+        <div class="p-name">Windows</div>
+        <div class="p-meta">Native desktop app</div>
+        <div class="p-desc">A fast native desktop wrapper with tabs, tray, and window management. Grab the latest installer from releases.</div>
+        <span class="p-link">Download from Releases ↗</span>
+      </a>
+
+      <a class="pcard" data-os="linux" href="https://github.com/hermes-webui/hermes-desktop-rust/releases" target="_blank">
+        <span class="p-badge">Recommended</span>
+        <span class="p-emoji">🐧</span>
+        <div class="p-name">Linux</div>
+        <div class="p-meta">Native desktop app</div>
+        <div class="p-desc">The same cross-platform Rust desktop app, packaged for Linux. Download the latest build from releases.</div>
+        <span class="p-link">Download from Releases ↗</span>
+      </a>
+
+      <a class="pcard" data-os="mac" href="https://github.com/hermes-webui/hermes-swift-mac/releases" target="_blank">
+        <span class="p-badge">Recommended</span>
+        <span class="p-emoji">🍎</span>
+        <div class="p-name">macOS</div>
+        <div class="p-meta">Native Swift app</div>
+        <div class="p-desc">A polished native macOS client built in Swift — menu bar, notifications, the works. Download the latest <code>.dmg</code> from releases.</div>
+        <span class="p-link">Download from Releases ↗</span>
+      </a>
+
+      <a class="pcard" data-os="ios" href="https://apps.apple.com/us/app/hermex/id6767006319" target="_blank">
+        <span class="p-badge">Recommended</span>
+        <span class="p-emoji">📱</span>
+        <div class="p-name">iOS</div>
+        <div class="p-meta">iPhone &amp; iPad · App Store</div>
+        <div class="p-desc">Hermex is a beautiful native iOS client — store your server URL in the Keychain and steer Hermes from your pocket. Free on the App Store.</div>
+        <span class="p-link">Download on the App Store ↗</span>
+      </a>
+
+      <a class="pcard" data-os="android" href="https://github.com/hermes-webui/hermes-android/releases" target="_blank">
+        <span class="p-badge">Recommended</span>
+        <span class="p-emoji">🤖</span>
+        <div class="p-name">Android</div>
+        <div class="p-meta">Native app · early access</div>
+        <div class="p-desc">A native Android client for Hermes WebUI. Grab the latest APK from releases (Play Store listing coming soon).</div>
+        <span class="p-link">Download from Releases ↗</span>
+      </a>
+    </div>
+
+    <div class="callout" style="margin-top:24px">📲 <b>Connecting any app:</b> open it, paste your <b>Server URL</b> from Step 2 (or <code>http://127.0.0.1:8787</code> on the same machine), tap <b>Test Connection</b>, then sign in with your password. Your URL is stored on-device; your data stays on your server.</div>
+  </div>
+</section>
+
+<!-- ECOSYSTEM -->
+<section class="section" id="ecosystem">
+  <div class="wrap">
+    <div class="section-head">
+      <h2>Extend &amp; explore</h2>
+      <p class="lead">Hermes WebUI is an open ecosystem — augment your install with extensions, and peek behind the curtain at how the whole thing is maintained.</p>
+    </div>
+    <div class="eco-grid">
+      <a class="eco" href="https://github.com/hermes-webui/hermes-webui-extensions" target="_blank">
+        <span class="eco-emoji">🧩</span>
+        <div>
+          <h4>Extensions library</h4>
+          <p>A growing collection of extensions that augment your Web UI in all kinds of ways — install the ones you want, build your own.</p>
+          <span class="eco-link">Browse extensions ↗</span>
+        </div>
+      </a>
+      <a class="eco" href="https://nesquena.github.io/steward-os/" target="_blank">
+        <span class="eco-emoji">📔</span>
+        <div>
+          <h4>StewardOS</h4>
+          <p>WebUI is maintained by Hermes agents — and the meta open-source framework that runs that whole operation is documented openly.</p>
+          <span class="eco-link">Read StewardOS ↗</span>
+        </div>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- TROUBLESHOOTING -->
+<section class="section" id="troubleshooting">
+  <div class="wrap">
+    <div class="section-head"><h2>Troubleshooting</h2></div>
+    <div class="faq">
+      <details>
+        <summary>An app can't reach the server</summary>
+        <p>Work outward. On the server, check <code>curl http://127.0.0.1:8787/health</code>. If that works, open your public/Tailscale URL in another device's browser. Whichever hop fails is the one to fix.</p>
+      </details>
+      <details>
+        <summary>The Cloudflare tunnel URL stopped working</summary>
+        <p>Quick tunnels (<code>trycloudflare.com</code>) get a new URL every time <code>cloudflared</code> restarts. For a stable hostname, create a named tunnel on a domain you've added to Cloudflare, and keep <code>cloudflared</code> running.</p>
+      </details>
+      <details>
+        <summary>The Tailscale address doesn't respond</summary>
+        <p>Confirm both devices are signed into the same tailnet and show as connected. Then make sure the server was started with <code>HERMES_WEBUI_HOST=0.0.0.0</code> — the default localhost binding isn't reachable over the tailnet.</p>
+      </details>
+      <details>
+        <summary>Sign-in keeps failing</summary>
+        <p>The password in your app must match <code>HERMES_WEBUI_PASSWORD</code> on the server (or the one set in Settings). An inline variable only applies to that launch — persist it in the server's <code>.env</code> for daemon restarts.</p>
+      </details>
+      <details>
+        <summary>Port 8787 is already taken</summary>
+        <p>Start on another port with <code>HERMES_WEBUI_PORT=8788 ./start.sh</code> and use that port in your client URL and tunnel command.</p>
+      </details>
+      <details>
+        <summary>Profile switching is disabled / only one profile shows</summary>
+        <p>That's isolated-profile mode. On a normal single-user install it should be off by default — update to the latest WebUI if you see it unexpectedly.</p>
+      </details>
+    </div>
+  </div>
+</section>
+
+<!-- FINAL CTA -->
+<section class="final-cta">
+  <h2>Ready to go everywhere?</h2>
+  <p>Run the server, grab your apps, and take Hermes with you.</p>
+  <div class="btn-row">
+    <a class="btn-primary" href="https://github.com/nesquena/hermes-webui" target="_blank">Get Hermes WebUI →</a>
+    <a class="btn-ghost" href="../">Back to home</a>
+  </div>
+</section>
+
+<footer>
+  <p>Part of the <a href="../">Hermes</a> project — <a href="https://github.com/nesquena/hermes-webui" target="_blank">open source on GitHub</a></p>
+</footer>
+
+<script>
+  // Theme toggle
+  var themeToggle = document.getElementById('theme-toggle');
+  function setTheme(t) {
+    document.documentElement.setAttribute('data-theme', t);
+    localStorage.setItem('theme', t);
+    themeToggle.textContent = t === 'light' ? '🌙' : '☀️';
+  }
+  setTheme(localStorage.getItem('theme') || 'dark');
+  themeToggle.addEventListener('click', function() {
+    setTheme(document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+  });
+
+  // Hamburger
+  var ham = document.getElementById('setup-hamburger');
+  var menu = document.getElementById('setup-mobile-menu');
+  if (ham && menu) {
+    ham.addEventListener('click', function() {
+      var open = menu.classList.toggle('open');
+      ham.classList.toggle('open', open);
+      ham.setAttribute('aria-expanded', open);
+    });
+    document.addEventListener('click', function(e) {
+      if (!ham.contains(e.target) && !menu.contains(e.target)) {
+        menu.classList.remove('open'); ham.classList.remove('open'); ham.setAttribute('aria-expanded', 'false');
+      }
+    });
+    menu.querySelectorAll('a').forEach(function(a){ a.addEventListener('click', function(){ menu.classList.remove('open'); ham.classList.remove('open'); }); });
+  }
+
+  // Copy buttons
+  document.querySelectorAll('.code-copy').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var code = btn.closest('.code').querySelector('code');
+      var text = code.innerText;
+      navigator.clipboard.writeText(text).then(function() {
+        var old = btn.textContent; btn.textContent = 'Copied!';
+        setTimeout(function(){ btn.textContent = old; }, 1400);
+      });
+    });
+  });
+
+  // OS detection — highlight the visitor's platform card
+  (function() {
+    var ua = navigator.userAgent || '';
+    var plat = navigator.platform || '';
+    var os = null, label = null;
+    if (/Android/i.test(ua)) { os = 'android'; label = 'Android'; }
+    else if (/iPhone|iPad|iPod/i.test(ua) || (plat === 'MacIntel' && navigator.maxTouchPoints > 1)) { os = 'ios'; label = 'iOS'; }
+    else if (/Macintosh|Mac OS X/i.test(ua)) { os = 'mac'; label = 'macOS'; }
+    else if (/Windows/i.test(ua)) { os = 'windows'; label = 'Windows'; }
+    else if (/Linux/i.test(ua)) { os = 'linux'; label = 'Linux'; }
+    if (os) {
+      var card = document.querySelector('.pcard[data-os="' + os + '"]');
+      if (card) {
+        card.classList.add('is-you');
+        var grid = card.parentNode;
+        grid.insertBefore(card, grid.firstChild); // float the visitor's platform to the top
+        var banner = document.getElementById('device-banner');
+        document.getElementById('device-name').textContent = label;
+        banner.classList.add('show');
+      }
+    }
+  })();
+</script>
+</body>
+</html>
