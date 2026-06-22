@@ -236,6 +236,13 @@
 
   footer { text-align: center; padding: 40px 24px; border-top: 1px solid var(--border); color: var(--text-muted); font-size: 0.88rem; }
   footer a { color: var(--accent); text-decoration: none; }
+  .footer-disclaimer { max-width: 720px; margin: 14px auto 0; font-size: 0.78rem; line-height: 1.6; color: var(--text-muted); }
+  .footer-disclaimer a { color: var(--text-secondary); text-decoration: underline; text-underline-offset: 2px; }
+  /* iOS App Store QR — desktop-only (on a phone you just tap the card). */
+  .ios-qr { display: flex; align-items: center; gap: 12px; margin: 14px 0 4px; padding: 10px; border: 1px solid var(--border); border-radius: 12px; background: var(--bg-secondary); }
+  .ios-qr img { width: 92px; height: 92px; border-radius: 8px; background: #fff; padding: 6px; flex-shrink: 0; display: block; }
+  .ios-qr-cap { font-size: 0.78rem; font-weight: 600; color: var(--text-secondary); line-height: 1.35; }
+  @media (max-width: 720px) { .ios-qr { display: none; } }
 
   /* SCROLL REVEAL */
   .reveal { opacity: 0; transform: translateY(22px); transition: opacity 0.6s cubic-bezier(0.16,1,0.3,1), transform 0.6s cubic-bezier(0.16,1,0.3,1); }
@@ -335,7 +342,12 @@
     </div>
 
     <div class="code reveal">
-      <div class="code-head"><span class="code-label">bash — clone &amp; start</span><button class="code-copy">Copy</button></div>
+      <div class="code-head"><span class="code-label">bash — one-liner</span><button class="code-copy">Copy</button></div>
+      <pre><code>curl -fsSL https://get-hermes.ai/install.sh | bash</code></pre>
+    </div>
+    <p class="reveal">Clones the Web UI to <code>~/hermes-webui</code> and starts it. Safe to re-run to update. Prefer to read it first? <a href="../install.sh" target="_blank" rel="noopener">View the script</a>, or clone &amp; start by hand:</p>
+    <div class="code reveal">
+      <div class="code-head"><span class="code-label">bash — manual</span><button class="code-copy">Copy</button></div>
       <pre><code>git clone https://github.com/nesquena/hermes-webui.git
 cd hermes-webui
 python3 bootstrap.py</code></pre>
@@ -472,6 +484,10 @@ cloudflared tunnel \
         <div class="p-name">iOS</div>
         <div class="p-meta">iPhone &amp; iPad · App Store</div>
         <div class="p-desc">Hermex is a native iOS client — your server URL lives in the Keychain, and Hermes is a tap away. Free on the App Store.</div>
+        <div class="ios-qr" aria-hidden="true">
+          <img src="images/hermex-appstore-qr.png" alt="QR code linking to the Hermex iOS app on the App Store" width="92" height="92" loading="lazy" />
+          <span class="ios-qr-cap">Scan to install<br/>on your iPhone</span>
+        </div>
         <span class="p-link">Download on the App Store <svg viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><path d="M320 0c-17.7 0-32 14.3-32 32s14.3 32 32 32l82.7 0L201.4 265.4c-12.5 12.5-12.5 32.8 0 45.3s32.8 12.5 45.3 0L448 109.3l0 82.7c0 17.7 14.3 32 32 32s32-14.3 32-32l0-160c0-17.7-14.3-32-32-32L320 0zM80 32C35.8 32 0 67.8 0 112L0 432c0 44.2 35.8 80 80 80l320 0c44.2 0 80-35.8 80-80l0-112c0-17.7-14.3-32-32-32s-32 14.3-32 32l0 112c0 8.8-7.2 16-16 16L80 448c-8.8 0-16-7.2-16-16l0-320c0-8.8 7.2-16 16-16l112 0c17.7 0 32-14.3 32-32s-14.3-32-32-32L80 32z"/></svg></span>
       </a>
 
@@ -580,6 +596,7 @@ cloudflared tunnel \
 
 <footer>
   <p>Part of the <a href="../">Hermes</a> project — <a href="https://github.com/nesquena/hermes-webui" target="_blank">open source on GitHub</a></p>
+  <p class="footer-disclaimer">Hermes WebUI is an independent community project (<a href="https://github.com/nesquena/hermes-webui" target="_blank" rel="noopener">nesquena/hermes-webui</a>), not affiliated with or endorsed by Nous Research. It runs on <a href="https://github.com/NousResearch/hermes-agent" target="_blank" rel="noopener">Hermes Agent</a> by <a href="https://nousresearch.com" target="_blank" rel="noopener">Nous Research</a> — the official project. Official site: <a href="https://hermes-agent.nousresearch.com" target="_blank" rel="noopener">hermes-agent.nousresearch.com</a>.</p>
 </footer>
 
 <script>

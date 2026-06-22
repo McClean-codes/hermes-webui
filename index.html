@@ -530,6 +530,16 @@
       border-radius: 50%;
       flex-shrink: 0;
     }
+    /* Star badges double as links: WebUI (ours) + Hermes Agent (upstream, labelled). */
+    a.stat-badge { text-decoration: none; transition: border-color .15s, color .15s, transform .15s; }
+    a.stat-star:hover { border-color: var(--accent); color: var(--text-primary); transform: translateY(-1px); }
+    .stat-star .star-ic { color: var(--accent); font-size: 0.85rem; line-height: 1; }
+    .stat-star .star-ct { font-weight: 700; color: var(--text-primary); }
+    .stat-star .badge-tag {
+      font-size: 0.62rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase;
+      color: var(--text-muted); border: 1px solid var(--border); border-radius: 100px;
+      padding: 1px 6px; margin-left: 2px;
+    }
     .hero-credit {
       margin-top: 20px;
       font-size: 0.8rem;
@@ -831,6 +841,19 @@
       font-weight: 600;
       color: var(--text-primary);
     }
+    .step-note {
+      font-size: 0.84rem;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin: 10px 0 10px;
+    }
+    .step-note code {
+      background: var(--bg-tertiary);
+      padding: 1px 6px;
+      border-radius: 5px;
+      font-size: 0.82em;
+    }
+    .step-note a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
 
     /* ===== WHO IS IT FOR ===== */
     .persona-grid {
@@ -1518,7 +1541,7 @@
     </ul>
     <div class="nav-actions">
       <button class="btn-theme" id="theme-toggle" aria-label="Toggle theme" title="Toggle light/dark mode">🌙</button>
-      <a href="https://hermes-agent.nousresearch.com/docs/getting-started/installation" class="btn-nav-cta" target="_blank" rel="noopener">Get started &#8594;</a>
+      <a href="setup/" class="btn-nav-cta">Get started &#8594;</a>
     </div>
     <button class="hamburger" id="hamburger" aria-label="Open menu">
       <span></span><span></span><span></span>
@@ -1548,7 +1571,7 @@
   <a href="#compare" onclick="closeMobileMenu()">Compare</a>
   <div style="height:1px;background:var(--border);margin:8px 0;"></div>
   <a href="community/" onclick="closeMobileMenu()" style="color:var(--accent)">&#127758; Community</a>
-  <a href="https://hermes-agent.nousresearch.com/docs/getting-started/installation" target="_blank" rel="noopener" style="color: var(--accent); margin-top: 4px;">Get started &#8594;</a>
+  <a href="setup/" onclick="closeMobileMenu()" style="color: var(--accent); margin-top: 4px;">Get started &#8594;</a>
 </div>
 
 <!-- Lightbox -->
@@ -1571,17 +1594,21 @@
         The self-improving AI agent that runs on your server. Layered memory that accumulates across sessions, a cron scheduler that fires while you're offline, and a skills system that saves reusable procedures automatically.
       </p>
       <div class="hero-ctas">
-        <a href="https://hermes-agent.nousresearch.com/docs/getting-started/installation" target="_blank" rel="noopener" class="btn-primary">
+        <a href="setup/" class="btn-primary">
           Get Started &#8594;
         </a>
-        <a href="https://github.com/NousResearch/hermes-agent" target="_blank" rel="noopener" class="btn-secondary">
+        <a href="https://github.com/nesquena/hermes-webui" target="_blank" rel="noopener" class="btn-secondary">
           <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style="flex-shrink:0"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-          View on GitHub
+          Web UI on GitHub
         </a>
       </div>
       <div class="hero-stats">
-        <span class="stat-badge"><span class="dot"></span>126k+ GitHub stars</span>
-        <span class="stat-badge"><span class="dot"></span>Multi-surface access</span>
+        <a href="https://github.com/nesquena/hermes-webui" target="_blank" rel="noopener" class="stat-badge stat-star" data-repo="nesquena/hermes-webui" title="Hermes Web UI — this community project's GitHub repo">
+          <span class="star-ic">&#9733;</span><span class="star-ct">14.8k</span> &middot; Web UI
+        </a>
+        <a href="https://github.com/NousResearch/hermes-agent" target="_blank" rel="noopener" class="stat-badge stat-star stat-star-upstream" data-repo="NousResearch/hermes-agent" title="Hermes Agent — the official upstream project by Nous Research (the engine the Web UI runs on)">
+          <span class="star-ic">&#9733;</span><span class="star-ct">199k</span> &middot; Hermes Agent <span class="badge-tag">official</span>
+        </a>
         <span class="stat-badge"><span class="dot"></span>47 built-in tools</span>
         <span class="stat-badge"><span class="dot"></span>MIT licensed</span>
       </div>
@@ -1847,11 +1874,19 @@ hermes model   # configure your LLM provider</code></pre>
           <div>
             <div class="step-header">
               <div class="step-num">2</div>
-              <div class="step-title">Clone and start the Web UI</div>
+              <div class="step-title">Install &amp; start the Web UI</div>
             </div>
             <div class="code-wrap">
               <div class="code-header">
-                <span class="code-lang">bash</span>
+                <span class="code-lang">bash &mdash; one-liner</span>
+                <button class="copy-btn" onclick="copyCode(this)">Copy</button>
+              </div>
+              <pre><code class="language-bash">curl -fsSL https://get-hermes.ai/install.sh | bash</code></pre>
+            </div>
+            <p class="step-note">Clones the Web UI to <code>~/hermes-webui</code> and starts it on <code>http://127.0.0.1:8787</code>. Safe to re-run to update. Prefer to read it first? <a href="install.sh" target="_blank" rel="noopener">View the script</a>, or do it by hand:</p>
+            <div class="code-wrap">
+              <div class="code-header">
+                <span class="code-lang">bash &mdash; manual</span>
                 <button class="copy-btn" onclick="copyCode(this)">Copy</button>
               </div>
               <pre><code class="language-bash">git clone https://github.com/nesquena/hermes-webui.git hermes-webui
