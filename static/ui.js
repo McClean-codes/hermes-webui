@@ -3069,13 +3069,33 @@ function _applyReasoningChip(eff){
   _highlightReasoningOption(effort);
 }
 
+// Tracks the model/provider identity of the last reasoning fetch so routine
+// topbar syncs can serve the cached chip state instead of re-hitting the
+// network. null = never fetched.
+let _lastReasoningFetchKey=null;
+
 function fetchReasoningChip(){
+  _lastReasoningFetchKey=_reasoningEffortQuery();
   api('/api/reasoning'+_reasoningEffortQuery()).then(function(st){
     _applyReasoningChip((st&&st.reasoning_effort)||'', st||{});
   }).catch(function(){_applyReasoningChip('', {supported_efforts:[]});});
 }
 
 function syncReasoningChip(){
+  // #4650: syncTopbar() calls this on every routine UI refresh, and during
+  // streaming those fire at high frequency. Before a9ce2889 this served the
+  // cached _currentReasoningEffort after the first load; that commit made it
+  // refetch unconditionally to refresh supported-efforts after a model switch,
+  // which turned ordinary syncs into a GET /api/reasoning storm (one per token).
+  // Restore the cache short-circuit but keep a9ce2889's intent: only hit the
+  // network when nothing is cached yet OR the model/provider identity changed
+  // since the last fetch (the only inputs that change /api/reasoning's answer).
+  // The user-pick and model-switch paths still update the cache directly.
+  const key=_reasoningEffortQuery();
+  if(_currentReasoningEffort!==null && _lastReasoningFetchKey===key){
+    _applyReasoningChip(_currentReasoningEffort);
+    return;
+  }
   fetchReasoningChip();
 }
 
