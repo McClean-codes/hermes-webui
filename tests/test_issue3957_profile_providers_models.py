@@ -742,3 +742,54 @@ custom_providers:
     assert env["HERMES_HOME"] == str(work_home)
     assert "MY_CUSTOM_API_KEY" not in env
 
+
+def test_account_usage_subprocess_env_strips_anthropic_token_aliases(monkeypatch, tmp_path):
+    """Quota probes must not inherit the process-default Anthropic OAuth/token env
+    vars (ANTHROPIC_TOKEN / CLAUDE_CODE_OAUTH_TOKEN) for an empty named profile.
+
+    These are agent-runtime credential env vars absent from the WebUI's settable
+    _PROVIDER_ENV_VAR map, so the strip set must derive them from the agent
+    registry — otherwise the anthropic quota subprocess resolves them via
+    resolve_anthropic_token() and leaks the server-process credential (#3961)."""
+    from api.providers import _account_usage_subprocess_env
+
+    base = tmp_path / ".hermes"
+    work_home = base / "profiles" / "work"
+    work_home.mkdir(parents=True)
+    monkeypatch.setattr(profiles, "_DEFAULT_HERMES_HOME", base)
+    monkeypatch.setenv("ANTHROPIC_TOKEN", "process-default-anthropic-token")
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "process-default-oauth-token")
+
+    profiles.set_request_profile("work")
+    try:
+        with profiles.profile_env_for_active_request_readonly("quota probe"):
+            env = _account_usage_subprocess_env(work_home, "anthropic", None)
+    finally:
+        profiles.clear_request_profile()
+
+    assert env["HERMES_HOME"] == str(work_home)
+    assert "ANTHROPIC_TOKEN" not in env
+    assert "CLAUDE_CODE_OAUTH_TOKEN" not in env
+
+
+def test_detached_worker_scope_scrubs_anthropic_token_aliases(monkeypatch, tmp_path):
+    """Detached/sync model-rebuild scope must scrub the process-default Anthropic
+    OAuth/token env vars too — verified agent model code can resolve Anthropic
+    models through raw os.getenv() of these names, so an empty named profile
+    must not see the server-process token (#3961 detached-worker leak)."""
+    base = tmp_path / ".hermes"
+    work_home = base / "profiles" / "work"
+    work_home.mkdir(parents=True)
+    monkeypatch.setattr(profiles, "_DEFAULT_HERMES_HOME", base)
+    monkeypatch.setenv("ANTHROPIC_TOKEN", "process-default-anthropic-token")
+    monkeypatch.setenv("CLAUDE_CODE_OAUTH_TOKEN", "process-default-oauth-token")
+
+    with profiles.profile_scope_for_detached_worker("work", "test-worker"):
+        assert os.environ.get("ANTHROPIC_TOKEN") is None
+        assert os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") is None
+        assert config._thread_local_env_value("ANTHROPIC_TOKEN") == ""
+        assert config._thread_local_env_value("CLAUDE_CODE_OAUTH_TOKEN") == ""
+
+    assert os.environ.get("ANTHROPIC_TOKEN") == "process-default-anthropic-token"
+    assert os.environ.get("CLAUDE_CODE_OAUTH_TOKEN") == "process-default-oauth-token"
+

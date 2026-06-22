@@ -885,6 +885,33 @@ def filter_runtime_env_for_gateway_parity(env: dict[str, str]) -> dict[str, str]
     return filtered
 
 
+def _agent_registry_credential_env_names() -> set[str]:
+    """Credential env-var names the *agent* runtime reads (hermes_cli auth
+    registry), e.g. OAuth/token-flow providers like Anthropic's ANTHROPIC_TOKEN
+    and CLAUDE_CODE_OAUTH_TOKEN. The WebUI's own _PROVIDER_ENV_VAR map omits
+    these (they aren't WebUI-settable API keys), so a profile scrub built only
+    from the WebUI map would leave them in os.environ — letting an empty named
+    profile inherit the server-process Anthropic token on the quota subprocess
+    and detached-worker model-rebuild paths (#3961 residual leak)."""
+    names: set[str] = set()
+    try:
+        from hermes_cli.auth import PROVIDER_REGISTRY
+
+        registry = PROVIDER_REGISTRY
+        items = registry.items() if hasattr(registry, "items") else enumerate(registry)
+        for _key, entry in items:
+            env_vars = getattr(entry, "api_key_env_vars", None)
+            for env_var in env_vars or ():
+                if env_var:
+                    names.add(str(env_var))
+    except Exception:
+        logger.debug(
+            "Failed to load agent registry credential env names for profile scope",
+            exc_info=True,
+        )
+    return names
+
+
 def _profile_secret_env_names(profile_home_path: Path) -> set[str]:
     names: set[str] = set()
     try:
@@ -896,6 +923,12 @@ def _profile_secret_env_names(profile_home_path: Path) -> set[str]:
             "Failed to load provider credential env names for profile scope",
             exc_info=True,
         )
+
+    # Also scrub credential env vars the agent runtime resolves directly
+    # (OAuth/token-flow providers absent from the WebUI's settable-key map) so a
+    # profile-scoped read can't inherit the server process's ANTHROPIC_TOKEN /
+    # CLAUDE_CODE_OAUTH_TOKEN etc. (#3961 cross-profile residual leak).
+    names.update(_agent_registry_credential_env_names())
 
     config_path = Path(profile_home_path) / "config.yaml"
     if not config_path.exists():
