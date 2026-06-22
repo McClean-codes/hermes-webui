@@ -3,6 +3,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- **Collapsed tool-call rows in the Transparent Stream view show their inline summary again.** A regression left collapsed tool rows in transparent-stream mode displaying only the bare tool name (`read_file`, `terminal`, `search_files`, …) with no hint of what each call did — you had to expand every row to see the target. It traced to two changes interacting: the collapsed-row preview was moved to an argument summary and then suppressed for the common case (because the *worklog* view's row name carries the target as a friendly action label), but the transparent view overrides the row name back to the bare tool name and so had neither the target-carrying label nor the preview. Transparent tool rows now rebuild a quiet, one-line summary from the call's target (file path, command, query, skill name, …) — never the raw result JSON, which stays in the expandable detail body. Affects both live streaming and persisted/old sessions on reload. (#4658)
+
 ## [v0.51.573] — 2026-06-22 — Release UF (reasoning request-storm fix)
 
 ### Fixed
