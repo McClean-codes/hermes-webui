@@ -3,6 +3,10 @@
 
 ## [Unreleased]
 
+### Fixed
+
+- Sidebar lineage rows now keep their running spinner, latest activity ordering, and unread/attention state when the active continuation is hidden as an archived lineage child. Pin/unpin actions also update the sidebar ordering immediately before the next server refresh.
+
 ## [v0.51.600] — 2026-06-23 — Release VG (suppress footer jitter during virtual-scroll measurement)
 
 ### Fixed

@@ -368,7 +368,11 @@ function _isSessionLocallyStreaming(s) {
 }
 
 function _isSessionEffectivelyStreaming(s) {
-  return Boolean(s && (s.is_streaming || _isSessionLocallyStreaming(s)));
+  return Boolean(s && (
+    s.is_streaming ||
+    _hasPendingUserMessageSignal(s) ||
+    _isSessionLocallyStreaming(s)
+  ));
 }
 
 function _hasPendingUserMessageSignal(s) {
@@ -376,7 +380,7 @@ function _hasPendingUserMessageSignal(s) {
 }
 
 function _isServerIdleSessionRow(s) {
-  return Boolean(s && s.session_id && !s.is_streaming && !s.active_stream_id && !s.pending_user_message && !s.has_pending_user_message);
+  return Boolean(s && s.session_id && !s.is_streaming && !s.active_stream_id && !s.pending_user_message && !s.has_pending_user_message && !s.pending_started_at);
 }
 
 function _reconcileActiveSessionIdleStateFromList(serverRows) {
@@ -642,7 +646,9 @@ function _markPollingCompletionUnreadTransitions(sessions) {
     const observedStreaming = _getSessionObservedStreaming()[sid];
     const messageCount = Number(s.message_count || 0);
     const lastMessageAt = Number(s.last_message_at || 0);
-    const completedObservedStream = wasStreaming === true && !isStreaming;
+    const hasServerRunSignal=Boolean(s.is_streaming||_hasPendingUserMessageSignal(s));
+    const canMarkCompletedStream=Boolean(hasServerRunSignal||previousSnapshot||observedStreaming);
+    const completedObservedStream = canMarkCompletedStream&&wasStreaming === true && !isStreaming;
     const completedWithNewMessages = Boolean(
       (previousSnapshot || observedStreaming)
       && !isStreaming
@@ -3345,8 +3351,11 @@ function _openSessionActionMenu(session, anchorEl){
       try{
         await api('/api/session/pin',{method:'POST',body:JSON.stringify({session_id:session.session_id,pinned:newPinned})});
         session.pinned=newPinned;
+        const cached=(_allSessions||[]).find(s=>s&&s.session_id===session.session_id);
+        if(cached) cached.pinned=newPinned;
         if(S.session&&S.session.session_id===session.session_id) S.session.pinned=newPinned;
-        renderSessionList();
+        renderSessionListFromCache();
+        void renderSessionList();
       }catch(err){
         showToast(t('session_pin_failed')+err.message);
         await renderSessionList();
@@ -3768,7 +3777,7 @@ function _applySessionListPayload(sessData, projData){
   _sessionListLoadError = null;
   _sessionListHasLoadedOnce = true;
   _markPollingCompletionUnreadTransitions(_allSessions);
-  const isStreaming = _allSessions.some(s => Boolean(s && s.is_streaming));
+  const isStreaming = _allSessions.some(s => _isSessionEffectivelyStreaming(s));
   if (isStreaming) {
     startStreamingPoll();
   } else {
@@ -4597,7 +4606,7 @@ function filterSessions(){
 }
 
 function _sessionTimestampMs(session) {
-  const raw = Number(session && (session.last_message_at || session.updated_at || session.created_at || 0));
+  const raw = Number(session && (session._sidebar_activity_at || session.last_message_at || session.updated_at || session.created_at || 0));
   return Number.isFinite(raw) ? raw * 1000 : 0;
 }
 
@@ -4991,6 +5000,8 @@ function _attachChildSessionsToSidebarRows(collapsedRows, rawSessions, rawRefere
     delete row._child_session_streaming;
     delete row._child_session_has_unread;
     delete row._child_session_attention;
+    delete row._child_session_latest_at;
+    delete row._sidebar_activity_at;
     return row;
   };
   const rows=(collapsedRows||[])
@@ -5005,6 +5016,14 @@ function _attachChildSessionsToSidebarRows(collapsedRows, rawSessions, rawRefere
   const bubbleSidebarState=(parentRow, childRow)=>{
     if(isChildStreaming(childRow)) parentRow._child_session_streaming=true;
     if(childHasUnread(childRow)) parentRow._child_session_has_unread=true;
+    const childActivityRaw=childRow
+      ? (childRow._sidebar_activity_at??childRow.last_message_at??childRow.updated_at??childRow.created_at??0)
+      : 0;
+    const childActivitySec=Number(childActivityRaw);
+    if(Number.isFinite(childActivitySec)&&childActivitySec>Number(parentRow._child_session_latest_at||0)){
+      parentRow._child_session_latest_at=childActivitySec;
+      parentRow._sidebar_activity_at=Math.max(Number(parentRow.last_message_at||parentRow.updated_at||parentRow.created_at||0), childActivitySec);
+    }
     const childAttention=childRow&&childRow.attention&&typeof childRow.attention==='object'?childRow.attention:null;
     if(!childAttention||!childAttention.kind||!Number.isFinite(Number(childAttention.count))||Number(childAttention.count)<=0) return;
     const priorityFor=(kind)=>kind==='approval'?3:(kind==='clarify'?2:1);
@@ -5060,12 +5079,21 @@ function _attachChildSessionsToSidebarRows(collapsedRows, rawSessions, rawRefere
     return false;
   };
   const orphans=[];
-  const attachQueue=[...(rawSessions||[])].sort((a,b)=>attachDepthFor(a)-attachDepthFor(b));
+  const renderableChildIds=new Set((rawSessions||[]).map(s=>s&&s.session_id).filter(Boolean));
+  const attachQueueById=new Map();
+  for(const candidate of [...(rawSessions||[]),...(referenceSessions||[])]){
+    if(candidate&&candidate.session_id&&!attachQueueById.has(candidate.session_id)) attachQueueById.set(candidate.session_id,candidate);
+  }
+  const attachQueue=[...attachQueueById.values()].sort((a,b)=>attachDepthFor(a)-attachDepthFor(b));
   for(const child of attachQueue){
+    const childRenderable=!!(child&&child.session_id&&renderableChildIds.has(child.session_id));
+    if(child&&child.session_id&&visibleBySid.has(child.session_id)) continue;
     const isForkChild=_isForkWithResolvableParent(child, sessionIdsInList)&&!(child&&child.pinned);
-    if(!_isChildSession(child)&&!isForkChild) continue;
+    const childLineageKey=child&&(child._lineage_root_id||child.lineage_root_id||child.parent_session_id);
+    const isHiddenLineageReferenceChild=!!(child&&child.archived&&child.parent_session_id&&childLineageKey&&!child.pinned&&!childRenderable);
+    if(!_isChildSession(child)&&!isForkChild&&!isHiddenLineageReferenceChild) continue;
     if(!isForkChild&&child._cross_surface_child_session){
-      orphans.push({...child,_orphan_child_session:true});
+      if(childRenderable) orphans.push({...child,_orphan_child_session:true});
       continue;
     }
     const parentSid=child.parent_session_id;
@@ -5079,22 +5107,27 @@ function _attachChildSessionsToSidebarRows(collapsedRows, rawSessions, rawRefere
     if(!parentRow&&child._parent_lineage_root_id){
       parentRow=visibleByLineageKey.get(child._parent_lineage_root_id)||null;
     }
+    if(!parentRow){
+      parentRow=visibleByLineageKey.get(childLineageKey||parentSid)||null;
+    }
     if(!parentRow&&hasHiddenArchivedAncestor(child)){
       hiddenArchivedChildTree.add(child.session_id);
       continue;
     }
     if(parentRow){
-      if(!Array.isArray(parentRow._child_sessions)) parentRow._child_sessions=[];
       const childCopy={...child};
       if(parentSegment){
         childCopy._parent_segment_id=parentSegment.session_id;
         childCopy._parent_segment_title=_sessionDisplayTitle(parentSegment)||child.parent_title||'Untitled';
       }
-      parentRow._child_sessions.push(childCopy);
-      parentRow._child_session_count=parentRow._child_sessions.length;
+      if(childRenderable&&!isHiddenLineageReferenceChild){
+        if(!Array.isArray(parentRow._child_sessions)) parentRow._child_sessions=[];
+        parentRow._child_sessions.push(childCopy);
+        parentRow._child_session_count=parentRow._child_sessions.length;
+      }
       bubbleSidebarState(parentRow, childCopy);
       visibleBySegmentSid.set(childCopy.session_id,{row: parentRow, seg: childCopy});
-    } else {
+    } else if(childRenderable) {
       orphans.push({...child,_orphan_child_session:true});
     }
   }
