@@ -238,8 +238,9 @@ def test_sidebar_source_varies_cache_key():
 def test_frontend_sends_sidebar_source_param():
     src = SESSIONS_JS.read_text(encoding="utf-8")
 
+    assert "function _requestedSessionSidebarSource()" in src
     assert "function _sessionListQueryString()" in src
-    assert "qs.set('sidebar_source', requestSidebarSource);" in src
+    assert "qs.set('sidebar_source', _requestedSessionSidebarSource());" in src
     assert "_serverWebuiSessionCount" in src
     assert "_serverCliSessionCount" in src
     assert "function _sessionSourceTabCount(" in src
@@ -248,12 +249,14 @@ def test_frontend_sends_sidebar_source_param():
 @pytest.mark.skipif(NODE is None, reason="node not on PATH")
 def test_session_list_query_string_respects_sidebar_source_and_flags():
     src = SESSIONS_JS.read_text(encoding="utf-8")
+    requested_source_fn = _extract_function(src, "_requestedSessionSidebarSource")
     query_fn = _extract_function(src, "_sessionListQueryString")
     script = f"""
 global.window = {{ _showCliSessions: true }};
 global._sessionSourceFilter = 'cli';
 global._showAllProfiles = true;
 global._showArchived = false;
+{requested_source_fn}
 {query_fn}
 const first = _sessionListQueryString();
 window._showCliSessions = false;
@@ -311,10 +314,12 @@ console.log(JSON.stringify({{
 @pytest.mark.skipif(NODE is None, reason="node not on PATH")
 def test_apply_payload_and_tab_count_helpers_cover_old_and_new_payloads():
     src = SESSIONS_JS.read_text(encoding="utf-8")
+    requested_source_fn = _extract_function(src, "_requestedSessionSidebarSource")
     apply_fn = _extract_function(src, "_applySessionListPayload")
     count_fn = _extract_function(src, "_sessionSourceTabCount")
     clear_fn = _extract_function(src, "_clearSessionSourceTabCounts")
     script = f"""
+global.window = {{ _showCliSessions: true }};
 global._otherProfileCount = 0;
 global._archivedWebuiCount = 0;
 global._archivedCliCount = 0;
@@ -331,6 +336,7 @@ global._sessionListHasLoadedOnce = false;
 global._sessionListFirstRenderAnimated = true;
 global._sessionListSkeletonActive = true;
 global._showAllProfiles = false;
+global._sessionSourceFilter = 'webui';
 global.S = {{ activeProfile: 'default' }};
 global._reconcileActiveSessionIdleStateFromList = rows => rows;
 global._mergeOptimisticFirstTurnSessions = rows => rows;
@@ -347,6 +353,7 @@ global.animateNextSessionListRefresh = () => {{}};
 global.renderSessionListFromCache = () => {{}};
 {clear_fn}
 {count_fn}
+{requested_source_fn}
 {apply_fn}
 const sessions = [{{ session_id: 'webui-1' }}];
 _applySessionListPayload({{ sessions, other_profile_count: 0, archived_count: 0, active_profile: 'default' }}, {{ projects: [] }});
@@ -373,6 +380,76 @@ console.log(JSON.stringify({{ oldPayload, newPayload }}));
 
     assert body["oldPayload"] == {"webui": 7, "cli": 3}
     assert body["newPayload"] == {"webui": 11, "cli": 5}
+
+
+@pytest.mark.skipif(NODE is None, reason="node not on PATH")
+def test_source_filtered_cache_preserves_hidden_bucket_runtime_state():
+    src = SESSIONS_JS.read_text(encoding="utf-8")
+    is_cli_fn = _extract_function(src, "_isCliSession")
+    purge_fn = _extract_function(src, "_purgeStaleInflightEntries")
+    mark_fn = _extract_function(src, "_markPollingCompletionUnreadTransitions")
+    script = f"""
+global._allSessions = [{{
+  session_id: 'cli-1',
+  source_tag: 'cli',
+  raw_source: 'cli',
+  session_source: 'cli',
+  is_streaming: false,
+  message_count: 1,
+  last_message_at: 10,
+}}];
+global._allSessionsScope = {{ sidebarSource: 'cli' }};
+global._sessionListSourceById = new Map([
+  ['webui-live', 'webui'],
+  ['cli-stale', 'cli'],
+]);
+global._sessionStreamingById = new Map([
+  ['webui-live', true],
+  ['cli-stale', true],
+]);
+global._sessionListSnapshotById = new Map([
+  ['webui-live', {{ message_count: 1, last_message_at: 1 }}],
+  ['cli-stale', {{ message_count: 2, last_message_at: 2 }}],
+]);
+global._sendInProgress = false;
+global._sendInProgressSid = null;
+global.INFLIGHT = {{
+  'webui-live': {{ lastAssistantText: 'working' }},
+  'cli-stale': {{ lastAssistantText: 'stale' }},
+}};
+const cleared = [];
+global.clearInflightState = sid => cleared.push(sid);
+global._isSessionEffectivelyStreaming = s => Boolean(s.is_streaming);
+global._getSessionObservedStreaming = () => ({{}});
+global._hasPendingUserMessageSignal = () => false;
+global._isSessionActivelyViewedForList = () => false;
+global._markSessionCompletionUnread = () => {{}};
+global._setSessionViewedCount = () => {{}};
+global._rememberObservedStreamingSession = () => {{}};
+global._forgetObservedStreamingSession = () => {{}};
+{is_cli_fn}
+{purge_fn}
+{mark_fn}
+_purgeStaleInflightEntries();
+_markPollingCompletionUnreadTransitions(global._allSessions);
+console.log(JSON.stringify({{
+  inflightKeys: Object.keys(INFLIGHT),
+  cleared,
+  streamingKeys: Array.from(_sessionStreamingById.keys()).sort(),
+  snapshotKeys: Array.from(_sessionListSnapshotById.keys()).sort(),
+  sourceKeys: Array.from(_sessionListSourceById.keys()).sort(),
+}}));
+"""
+    body = _run_node(script)
+
+    assert body["inflightKeys"] == ["webui-live"]
+    assert body["cleared"] == ["cli-stale"]
+    assert "webui-live" in body["streamingKeys"]
+    assert "cli-stale" not in body["streamingKeys"]
+    assert "webui-live" in body["snapshotKeys"]
+    assert "cli-stale" not in body["snapshotKeys"]
+    assert "webui-live" in body["sourceKeys"]
+    assert "cli-stale" not in body["sourceKeys"]
 
 
 def test_session_list_response_omits_bucket_counts_when_missing(monkeypatch):

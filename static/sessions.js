@@ -175,6 +175,7 @@ let _sessionCompletionUnread = null;
 let _sessionObservedStreaming = null;
 const _sessionStreamingById = new Map();
 const _sessionListSnapshotById = new Map();
+const _sessionListSourceById = new Map();
 let _sessionListPointerActive = false;
 let _sessionListLastScrollAt = 0;
 let _pendingSessionListPayload = null;
@@ -449,6 +450,9 @@ function _purgeStaleInflightEntries() {
       if (s && s.session_id) sessionsById.set(s.session_id, s);
     }
   }
+  const currentSidebarSource = _allSessionsScope && typeof _allSessionsScope.sidebarSource === 'string'
+    ? _allSessionsScope.sidebarSource
+    : null;
   for (const sid of Object.keys(INFLIGHT)) {
     // #4354: purge stale INFLIGHT even for a hung/idle session, BUT skip the one
     // session actively mid-send (#2689 start-race) — during /api/chat/start the
@@ -458,6 +462,10 @@ function _purgeStaleInflightEntries() {
       continue;
     }
     if (!sessionsById.has(sid)) {
+      const knownSource = _sessionListSourceById.get(sid);
+      if (currentSidebarSource && (!knownSource || knownSource !== currentSidebarSource)) {
+        continue;
+      }
       // Session is absent from _allSessions — it was deleted / archived /
       // filtered and can never stream again, so drop the entry.
       delete INFLIGHT[sid];
@@ -625,6 +633,7 @@ function _markSessionCompletedInList(session, previousSid = null) {
     _sessionStreamingById.delete(previousSid);
     _forgetObservedStreamingSession(previousSid);
     _sessionListSnapshotById.delete(previousSid);
+    _sessionListSourceById.delete(previousSid);
   }
   _sessionListSnapshotById.set(finalSid, {
     message_count: messageCount,
@@ -636,10 +645,14 @@ function _markSessionCompletedInList(session, previousSid = null) {
 function _markPollingCompletionUnreadTransitions(sessions) {
   if (!Array.isArray(sessions)) return;
   const seen = new Set();
+  const currentSidebarSource = _allSessionsScope && typeof _allSessionsScope.sidebarSource === 'string'
+    ? _allSessionsScope.sidebarSource
+    : null;
   for (const s of sessions) {
     if (!s || !s.session_id) continue;
     const sid = s.session_id;
     seen.add(sid);
+    _sessionListSourceById.set(sid, _isCliSession(s) ? 'cli' : 'webui');
     const wasStreaming = _sessionStreamingById.get(sid);
     const isStreaming = _isSessionEffectivelyStreaming(s);
     const previousSnapshot = _sessionListSnapshotById.get(sid);
@@ -677,11 +690,18 @@ function _markPollingCompletionUnreadTransitions(sessions) {
       last_message_at: lastMessageAt,
     });
   }
-  for (const sid of Array.from(_sessionStreamingById.keys())) {
-    if (!seen.has(sid)) _sessionStreamingById.delete(sid);
-  }
-  for (const sid of Array.from(_sessionListSnapshotById.keys())) {
-    if (!seen.has(sid)) _sessionListSnapshotById.delete(sid);
+  const staleRuntimeStateSids = new Set([
+    ...Array.from(_sessionStreamingById.keys()),
+    ...Array.from(_sessionListSnapshotById.keys()),
+    ...Array.from(_sessionListSourceById.keys()),
+  ]);
+  for (const sid of staleRuntimeStateSids) {
+    if (seen.has(sid)) continue;
+    const knownSource = _sessionListSourceById.get(sid);
+    if (currentSidebarSource && (!knownSource || knownSource !== currentSidebarSource)) continue;
+    _sessionStreamingById.delete(sid);
+    _sessionListSnapshotById.delete(sid);
+    _sessionListSourceById.delete(sid);
   }
 }
 
@@ -1566,10 +1586,13 @@ function _clearSessionSourceTabCounts() {
   _serverCliSessionCount = null;
 }
 
+function _requestedSessionSidebarSource() {
+  return window._showCliSessions ? _sessionSourceFilter : 'webui';
+}
+
 function _sessionListQueryString() {
   const qs = new URLSearchParams();
-  const requestSidebarSource = window._showCliSessions ? _sessionSourceFilter : 'webui';
-  qs.set('sidebar_source', requestSidebarSource);
+  qs.set('sidebar_source', _requestedSessionSidebarSource());
   if(_showAllProfiles) qs.set('all_profiles','1');
   if(_showArchived) qs.set('include_archived','1');
   return qs.toString() ? `?${qs.toString()}` : '';
@@ -3800,6 +3823,7 @@ function _applySessionListPayload(sessData, projData){
       ? sessData.active_profile
       : (S.activeProfile || 'default'),
     allProfiles: !!_showAllProfiles,
+    sidebarSource: _requestedSessionSidebarSource(),
   };
   _syncSessionAttentionSoundState(_allSessions);
   _pruneLineageReportCacheToVisibleSessions(_allSessions);
