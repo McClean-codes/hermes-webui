@@ -2315,6 +2315,97 @@ def _get_cached_session_list_payload(
         _session_list_cache_set(key, payload)
     return payload
 
+
+# Pre-warm coordination (#4718): dedup concurrent/rapid warms of the same profile so a
+# burst of switches (or a switch racing the client's own GET) can't fan out duplicate
+# builds. The actual rebuild single-flight + invalidation-stamp guard already live in
+# _get_cached_session_list_payload; this set just avoids spawning redundant warm threads.
+_SESSION_LIST_WARM_INFLIGHT: set = set()
+_SESSION_LIST_WARM_LOCK = threading.Lock()
+
+
+def warm_session_list_cache(profile_name: str | None = None) -> bool:
+    """Best-effort pre-warm of the /api/sessions sidebar payload for the active profile.
+
+    Mirrors the GET /api/sessions handler's cache key + builder exactly (same settings
+    reads, same sidebar_source='webui' / exclude_hidden / visible_only contract) so the
+    client's sidebar GET that immediately follows a profile switch hits a WARM payload
+    instead of paying the ~780ms cold build (#4718, measured by @rodboev on v0.51.610).
+
+    This warms the SAME cache layer the sidebar reads (_session_list_cache via
+    _get_cached_session_list_payload) — not the lower get_cli_sessions() cache, which
+    #4769's sidebar_source=webui path no longer touches for sidebar loads.
+
+    MUST run with the target profile's request-profile TLS established (the caller, e.g.
+    a detached worker, uses profile_scope_for_detached_worker) so active_profile resolves
+    to the target, not the process default.
+
+    Returns True if a warm build ran, False if it was deduped or skipped. Never raises.
+    """
+    try:
+        from api.profiles import get_active_profile_name
+
+        active_profile = get_active_profile_name()
+        dedup_key = profile_name or active_profile or "__default__"
+        with _SESSION_LIST_WARM_LOCK:
+            if dedup_key in _SESSION_LIST_WARM_INFLIGHT:
+                return False
+            _SESSION_LIST_WARM_INFLIGHT.add(dedup_key)
+        try:
+            settings = load_settings()
+            show_cli_sessions = bool(settings.get("show_cli_sessions"))
+            show_previous_messaging_sessions = bool(
+                settings.get("show_previous_messaging_sessions")
+            )
+            show_cron_sessions = bool(settings.get("show_cron_sessions"))
+            agent_session_source_filter = settings.get("agent_session_source_filter")
+            # The sidebar's default request: visible WebUI rows, hidden excluded.
+            # (Matches static/sessions.js which fetches with sidebar_source=webui
+            # and exclude_hidden=1 for the standard sidebar load.)
+            all_profiles = False
+            include_archived = False
+            exclude_hidden = True
+            sidebar_source = "webui"
+            key = _session_list_cache_key(
+                active_profile=active_profile,
+                all_profiles=all_profiles,
+                show_cli_sessions=show_cli_sessions,
+                show_previous_messaging_sessions=show_previous_messaging_sessions,
+                show_cron_sessions=show_cron_sessions,
+                include_archived=include_archived,
+                exclude_hidden=exclude_hidden,
+                visible_only=True,
+                source_filter=agent_session_source_filter,
+                sidebar_source=sidebar_source,
+            )
+            # If a fresh entry already exists (e.g. the client beat us), do nothing.
+            cached, is_fresh = _session_list_cache_get(key, allow_stale=False)
+            if cached is not None and is_fresh:
+                return False
+            _get_cached_session_list_payload(
+                key=key,
+                builder=lambda: _build_session_list_cache_payload(
+                    active_profile=active_profile,
+                    all_profiles=all_profiles,
+                    show_cli_sessions=show_cli_sessions,
+                    show_previous_messaging_sessions=show_previous_messaging_sessions,
+                    show_cron_sessions=show_cron_sessions,
+                    include_archived=include_archived,
+                    exclude_hidden=exclude_hidden,
+                    visible_only=True,
+                    source_filter=agent_session_source_filter,
+                    sidebar_source=sidebar_source,
+                ),
+            )
+            return True
+        finally:
+            with _SESSION_LIST_WARM_LOCK:
+                _SESSION_LIST_WARM_INFLIGHT.discard(dedup_key)
+    except Exception as exc:  # pragma: no cover - defensive; warming must never break
+        logger.debug("warm_session_list_cache() skipped: %s", exc)
+        return False
+
+
 from api.config import (
     STATE_DIR,
     SESSION_DIR,
@@ -11793,6 +11884,35 @@ def handle_post(handler, parsed) -> bool:
                 restart_watcher_for_profile(name)
             except Exception as exc:
                 logger.warning("Failed to restart gateway watcher for profile %s: %s", name, exc)
+            # Pre-warm the target profile's sidebar payload on a detached thread (#4718):
+            # the switch POST returns in ~200ms but the client's /api/sessions GET then
+            # pays the ~780ms cold build (measured by @rodboev). Warming the SAME cache
+            # the sidebar reads lets that GET hit a warm payload, dropping the perceived
+            # switch from ~1s to ~200ms. Best-effort + fully detached: never blocks/fails
+            # the switch response. profile_scope_for_detached_worker binds BOTH the
+            # request-profile TLS and env so the warm resolves the TARGET profile (not the
+            # process default) — get_active_profile_name() inside the build reads the TLS.
+            try:
+                import threading as _threading
+                from api.profiles import profile_scope_for_detached_worker
+
+                def _warm_target_profile_sidebar(profile_name: str):
+                    try:
+                        with profile_scope_for_detached_worker(
+                            profile_name, purpose="profile-switch sidebar pre-warm"
+                        ):
+                            warm_session_list_cache(profile_name)
+                    except Exception as warm_exc:  # pragma: no cover - defensive
+                        logger.debug("post-switch sidebar pre-warm skipped: %s", warm_exc)
+
+                _threading.Thread(
+                    target=_warm_target_profile_sidebar,
+                    args=(name,),
+                    name="profile-switch-prewarm",
+                    daemon=True,
+                ).start()
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug("Failed to launch post-switch sidebar pre-warm: %s", exc)
             return j(handler, result, extra_headers={
                 'Set-Cookie': build_profile_cookie(name, handler),
             })

@@ -3,6 +3,10 @@
 
 ## [Unreleased]
 
+### Changed
+
+- **Profile switching pre-warms the new profile's sidebar so the conversation list appears almost immediately.** Previously, switching profiles returned the switch response quickly (~200ms) but the browser's follow-up sidebar request then paid the full cold session-list build (~780ms on a large profile, measured by @rodboev), so the list visibly lagged the switch by roughly a second. The WebUI now pre-warms the target profile's sidebar payload on a detached background thread the moment a switch succeeds — warming the exact same cached response the sidebar reads — so the browser's request lands on a warm cache and the list shows up right away. The pre-warm is best-effort and fully detached: it never blocks or fails the switch, it is scoped to the target profile (so it warms the correct profile's data, not the default), it dedups so a burst of rapid switches can't fan out duplicate builds, and it reuses the existing session-list cache's single-flight + invalidation guards so it can never serve or store stale data. Part of the phased profile-switch performance work (#4662, phase 4). (#4718)
+
 ## [v0.51.612] — 2026-06-23 — Release VS (background-tab notifications + profile default workspace on fresh sessions)
 
 ### Fixed
