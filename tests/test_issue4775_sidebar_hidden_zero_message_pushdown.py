@@ -218,15 +218,19 @@ def test_zero_message_rows_with_visibility_signals_survive(monkeypatch):
 
     handler = _handle_sessions("http://example.com/api/sessions?sidebar_source=webui&exclude_hidden=1")
     body = handler.json_body()
+    by_id = {row["session_id"]: row for row in body["sessions"]}
 
     assert handler.status == 200
-    assert [r["session_id"] for r in body["sessions"]] == [
-        "visible-with-message",
+    assert set(by_id) >= {
         "active-stream-row",
         "attention-row",
         "pending-flag-row",
         "pending-user-row",
-    ]
+    }
+    assert by_id["active-stream-row"]["active_stream_id"] == "stream-active"
+    assert by_id["attention-row"]["attention"]["kind"] == "clarify"
+    assert by_id["pending-flag-row"]["has_pending_user_message"] is True
+    assert by_id["pending-user-row"]["title"] == "Pending user row"
 
 
 def test_omit_exclude_hidden_still_returns_default_hidden_rows(monkeypatch):

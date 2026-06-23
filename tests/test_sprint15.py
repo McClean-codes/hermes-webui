@@ -1,7 +1,7 @@
 """
 Sprint 15 Tests: session projects (CRUD, move, backward compat).
 """
-import json, urllib.error, urllib.request
+import json, urllib.error, urllib.parse, urllib.request
 
 from tests._pytest_port import BASE
 
@@ -30,12 +30,13 @@ def make_session(created_list):
 
 
 def _make_session_visible(sid):
-    from api.models import Session
-
-    session = Session.load(sid)
-    assert session is not None
-    session.messages = [{"role": "user", "content": "visible row", "timestamp": 1.0}]
-    session.save()
+    d, status = post("/api/chat/start", {
+        "session_id": sid,
+        "message": "visible row",
+        "model": "openai/gpt-5.4-mini",
+    })
+    assert status == 200, f"chat/start failed with {status}: {d}"
+    get(f"/api/chat/cancel?stream_id={urllib.parse.quote(d['stream_id'])}")
 
 
 def make_project(created_list, name="Test Project", color=None):
@@ -226,7 +227,8 @@ def test_compact_includes_project_id():
     sids = []
     try:
         sid, sess = make_session(sids)
-        # Give it a title so it appears in the list
+        # Give it a real message so the default sidebar route keeps it visible.
+        _make_session_visible(sid)
         post("/api/session/rename", {"session_id": sid, "title": "Compat Test"})
         dl, _ = get("/api/sessions")
         match = [s for s in dl["sessions"] if s["session_id"] == sid]

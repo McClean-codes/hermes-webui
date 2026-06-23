@@ -9839,6 +9839,8 @@ def handle_get(handler, parsed) -> bool:
             sidebar_source = parse_qs(parsed.query).get("sidebar_source", [""])[0].strip().lower() or None
             if sidebar_source not in ("webui", "cli"):
                 sidebar_source = None
+            # /api/sessions is the default sidebar contract, so keep the route-owned
+            # visible-row filter in the shared cache builder for both cache hits and misses.
             key = _session_list_cache_key(
                 active_profile=active_profile,
                 all_profiles=all_profiles,
