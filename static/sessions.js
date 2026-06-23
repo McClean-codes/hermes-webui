@@ -1002,6 +1002,13 @@ async function loadSession(sid){
   // Mark this session as the in-flight load. Subsequent loadSession() calls
   // will overwrite this; stale awaits use the mismatch to bail out (#1060).
   _loadingSessionId = sid;
+  // Reset scroll state for fresh session navigation — the reader expects to
+  // land at the bottom of the new transcript, not wherever a stale unpin flag
+  // from a prior session or a stray touch event during loading would place them.
+  if (currentSid !== sid && typeof _messageUserUnpinned !== 'undefined') {
+    _messageUserUnpinned = false;
+    _scrollPinned = true;
+  }
   stopApprovalPolling();hideApprovalCard(forceReload);
   if(typeof stopSessionStream==='function') stopSessionStream();
   _yoloEnabled=false;_updateYoloPill();
