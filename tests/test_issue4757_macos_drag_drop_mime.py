@@ -51,6 +51,7 @@ def _extract_drag_functions():
         extract_function(name)
         for name in (
             '_setWsDragData',
+            '_clearWsDragData',
             '_isWorkspaceTreeMoveDrag',
             '_wsDragSrcPath',
             '_wsDragSrcType',
@@ -130,6 +131,42 @@ process.stdout.write(String(_isWorkspaceTreeMoveDrag({dataTransfer: dropDt})));
 """
         assert _run_node(js) == 'false', \
             'foreign text drag must be rejected when no active-drag flag is set'
+
+    def test_stale_flag_foreign_text_resolves_empty(self):
+        """If the active-drag flag lingers (lost dragend) and a FOREIGN text/plain
+        drag arrives whose content differs from the tracked path, _wsDragSrcPath
+        must return '' (not the stale path) so no spurious workspace move runs.
+
+        Regression guard for the gate-found SILENT hazard: the stripped-MIME
+        fallback now requires text/plain === _wsActiveDragPath."""
+        js = """\
+const item = {path: 'docs/readme.md', type: 'file'};
+const startDt = new FakeDataTransfer([], {});
+startDt.setData = function(mime, val){ this._map[mime]=val; if(!this.types.includes(mime)) this.types.push(mime); };
+_setWsDragData({dataTransfer: startDt}, item);
+// Flag still set (dragend never fired). A foreign text drag arrives with
+// DIFFERENT content and no custom MIME.
+const dropDt = new FakeDataTransfer(['text/plain'], {'text/plain': 'some pasted text'});
+dropDt.getData = function(mime){ if(mime==='application/ws-path') return ''; return this._map[mime]||''; };
+process.stdout.write('[' + _wsDragSrcPath({dataTransfer: dropDt}) + ']');
+"""
+        assert _run_node(js) == '[]', \
+            'stale flag + foreign text (content != tracked path) must resolve to empty'
+
+    def test_clear_ws_drag_data_resets_flags(self):
+        """_clearWsDragData nulls both flags so a later text/plain-only drag is rejected."""
+        js = """\
+const item = {path: 'tmp.txt', type: 'file'};
+const startDt = new FakeDataTransfer([], {});
+startDt.setData = function(mime, val){ this._map[mime]=val; if(!this.types.includes(mime)) this.types.push(mime); };
+_setWsDragData({dataTransfer: startDt}, item);
+_clearWsDragData();
+const dropDt = new FakeDataTransfer(['text/plain'], {'text/plain': item.path});
+process.stdout.write(String(_isWorkspaceTreeMoveDrag({dataTransfer: dropDt})));
+"""
+        assert _run_node(js) == 'false', \
+            '_clearWsDragData must reset flags so a stripped-MIME drag is no longer accepted'
+
 
     def test_files_drag_rejected_even_with_active_flag(self):
         """Files drop must be rejected regardless of active-drag state."""
