@@ -3,6 +3,12 @@
 
 ## [Unreleased]
 
+## [v0.51.663] — 2026-06-25 — Release XS (mobile reload button shows outside standalone mode)
+
+### Fixed
+
+- **The reload/refresh button is now visible in the mobile titlebar in a normal browser, not only in installed/standalone (PWA) mode.** The phone-width titlebar re-showed only the new-chat button while the reload button was re-shown by a separate standalone/fullscreen rule, so on a regular mobile browser there was no reload affordance. The phone-width rule now shows it too (it stays hidden on desktop, where it isn't needed). Thanks @rodboev. (#4939, fixes #4784)
+
 ## [v0.51.662] — 2026-06-25 — Release XR (live replies keep following during transcript rebuilds)
 
 ### Fixed
