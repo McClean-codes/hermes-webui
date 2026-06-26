@@ -9971,6 +9971,7 @@ def handle_get(handler, parsed) -> bool:
         _login_strings = _LOGIN_LOCALE[
             _resolve_login_locale_key(_lang)
         ]
+        from urllib.parse import quote
         from api.updates import WEBUI_VERSION
         version_token = quote(WEBUI_VERSION, safe="")
         _page = (

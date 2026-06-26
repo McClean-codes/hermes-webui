@@ -484,8 +484,8 @@ def _coerce_numeric_claim(claims: dict[str, Any], name: str) -> float | None:
         return None
     try:
         return float(value)
-    except (TypeError, ValueError):
-        raise OIDCAuthError(f"OIDC id_token claim {name} was not numeric")
+    except (TypeError, ValueError) as exc:
+        raise OIDCAuthError(f"OIDC id_token claim {name} was not numeric") from exc
 
 
 def _enforce_allowlist(
