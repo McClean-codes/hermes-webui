@@ -15958,7 +15958,7 @@ const LOCALES = {
     token_usage_off: 'Utilisation des jetons désactivée',
     usage_cache_hit_detail: 'Cache : {0}% de réussite ({1} lectures / {2} écritures)',
     usage_cached_percent: '{0}% en cache',
-    theme_usage: 'Utilisation : /theme ',
+    theme_usage: 'Utilisation : /theme ',
     theme_set: 'Thème : ',
     no_active_session: 'Aucune session active',
     cmd_queue: 'Mettre un message en file d\'attente pour le prochain tour',
