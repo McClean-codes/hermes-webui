@@ -35,6 +35,8 @@
 
 ### Fixed
 
+- **Opt-in Shift+Enter send-key mode.** A new send-key option mirrors the existing Ctrl+Enter mode: when set to "shift+enter", Shift+Enter sends the message and a plain Enter inserts a newline; the default "enter" behavior (Enter sends, Shift+Enter newline) is unchanged when the option is off. IME composition, numpad Enter, and the command-dropdown are all handled, with no double-send. Thanks @futureworld678. (#5005)
+
 - **Configurable provider spend budget with a percent-used indicator.** The provider usage settings now have a "Monthly budget" field (with Set / Clear) and a progress bar showing how much of the budget the current monthly pace has used (e.g. "65% of $50.00 budget"). Budget input is validated on both the save and read paths via a shared coercion helper, so out-of-range or malformed values (e.g. `0.004`, `5e12`) are rejected rather than silently stored. Thanks @rodboev. (#5120, #692)
 
 - **Opt-in per-project "New conversation" shortcuts in the sidebar.** A new default-off setting ("Show per-project new-conversation buttons") adds a small `+` button to each sidebar project chip that starts a conversation already assigned to that project. Off by default — the sidebar is unchanged unless you enable it. Thanks @rodboev. (#5002, #4676)
