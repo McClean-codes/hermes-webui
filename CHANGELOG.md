@@ -35,6 +35,8 @@
 
 ### Fixed
 
+- **Opt-in busy composer placeholder hint.** A new default-off setting swaps the composer placeholder to a busy-mode-specific hint (queue / steer / interrupt) when the agent is running, deferring to the compression placeholder and any user draft, and restoring on idle. Text-only (no layout change), XSS-safe, localized across all 14 locales. Thanks @rodboev. (#5161, #5144)
+
 - **A server-initiated turn that finished during an SSE gap now renders correctly on a visible-tab wake.** When a tab regained focus after the SSE stream had a gap, a self-heal reload could clobber a concurrent same-session `server_turn_started`, losing live-render ownership. The active stream id is now re-read after the awaited message load and scoped to the same session, so a concurrent same-session stream is honored by the attach/idle decision. The original SSE-gap self-heal (metadata-only server-ahead, in-place replace, no jump) is intact. Thanks @allenliang2022. (#5248)
 - **The latest assistant response now carries a single accessible landmark, only once it has settled.** The "Latest Hermes response" landmark is no longer applied to an actively-streaming turn (only the latest settled turn gets it), giving screen-reader users one stable, correctly-placed landmark. Thanks @sheldon-im. (#5207)
 
