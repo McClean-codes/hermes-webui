@@ -35,6 +35,8 @@
 
 ### Fixed
 
+- **Extension skins can declare a base scheme (`light`/`dark`).** A registered extension skin may now set `scheme: "light" | "dark"` via `registerHermesSkin()`, so a light-only or dark-only skin forces the effective base (`.dark` class) it needs while selected — without rewriting the user's saved Theme preference. Core owns the light/dark base decision for registered skins, so extensions no longer need broad workaround CSS. The scheme value is sanitized to only `light`/`dark` and never enters the CSS token path (no injection vector); the base initializes from the pre-painted theme so a no-scheme skin can't flash a saved dark theme to light during boot. Thanks @franksong2702. (#5271)
+
 - **More complete Simplified Chinese (zhCN) localization.** Previously-unlocalized UI strings now have zhCN translations. Thanks @Loukky. (#5279)
 
 - **A reader who scrolled up no longer gets yanked to the bottom when the SSE stream drops and recovers.** The four SSE-recovery follow-guards now capture explicit follow-intent (sticky-aware: a manually scrolled-up reader counts as unpinned even within 1200px of the bottom) before the terminal-error marker mutates the transcript, so a reconnect re-follows a genuine follower but spares a reader who scrolled up to read history. Thanks @allenliang2022. (#5217)
