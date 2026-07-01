@@ -225,8 +225,68 @@ class TestRepairBareCustomProviderModel:
         ]
         with patch("api.config.cfg", {"custom_providers": custom_cfg}):
             assert _repair_bare_custom_provider_model(
-                "shared-suffix", "custom:llm-proxy"
+                "shared-suffix", "custom:llm-proxy",
+                config_obj={"custom_providers": custom_cfg},
             ) == "org-a/shared-suffix"
+
+    def test_repairs_display_name_provider_via_slug(self):
+        from api.routes import _repair_bare_custom_provider_model
+
+        cfg = {
+            "custom_providers": [
+                {
+                    "name": "My Proxy",
+                    "models": {"x-ai/grok-composer-2.5-fast": {}},
+                }
+            ]
+        }
+        assert _repair_bare_custom_provider_model(
+            "grok-composer-2.5-fast",
+            "custom:my-proxy",
+            config_obj=cfg,
+        ) == "x-ai/grok-composer-2.5-fast"
+
+    def test_repairs_list_form_models_catalog(self):
+        from api.routes import _repair_bare_custom_provider_model
+
+        cfg = {
+            "custom_providers": [
+                {
+                    "name": "team",
+                    "models": [
+                        "profile-list/shared",
+                        {"id": "profile-list/other"},
+                    ],
+                }
+            ]
+        }
+        assert _repair_bare_custom_provider_model(
+            "shared",
+            "custom:team",
+            config_obj=cfg,
+        ) == "profile-list/shared"
+
+    def test_uses_get_config_when_config_obj_is_none(self):
+        from unittest.mock import patch
+        from api.routes import _repair_bare_custom_provider_model
+
+        cfg = {
+            "custom_providers": [
+                {
+                    "name": "team",
+                    "models": {"vendor/shared": {}},
+                }
+            ]
+        }
+        with patch("api.config.get_config") as mock_get_config:
+            mock_get_config.return_value = cfg
+            result = _repair_bare_custom_provider_model(
+                "shared",
+                "custom:team",
+                config_obj=None,
+            )
+        assert result == "vendor/shared"
+        mock_get_config.assert_called_once_with()
 
     def test_malformed_custom_provider_name_fails_closed(self):
         from api.routes import _repair_bare_custom_provider_model
@@ -289,7 +349,7 @@ class TestReadProfileModelConfigWithExplicitProvider:
             lambda _p: str(profile_home),
         )
 
-        provider, default = _read_profile_model_config(_Session(), "custom:my-proxy")
+        provider, default, _ = _read_profile_model_config(_Session(), "custom:my-proxy")
         assert provider is None
         assert default == "x-ai/grok-composer-2.5-fast"
 
@@ -313,6 +373,6 @@ class TestReadProfileModelConfigWithExplicitProvider:
             lambda _p: str(profile_home),
         )
 
-        provider, default = _read_profile_model_config(_Session(), "custom:other-proxy")
+        provider, default, _ = _read_profile_model_config(_Session(), "custom:other-proxy")
         assert provider is None
         assert default is None
