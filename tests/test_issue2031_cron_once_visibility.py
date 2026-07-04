@@ -92,6 +92,7 @@ const cases = {
   shorthand: _cronSchedulePresetIdForValue("@daily"),
   invalidDaily: _cronSchedulePresetIdForValue("99 99 * * *"),
   invalidHourly: _cronSchedulePresetIdForValue("60 * * * *"),
+  ambiguousSunday: _cronSchedulePresetIdForValue("0 9 * * 7"),
   invalidWeekly: _cronSchedulePresetIdForValue("0 9 * * 8"),
   invalidMonthDayZero: _cronSchedulePresetIdForValue("0 9 0 * *"),
   invalidMonthly: _cronSchedulePresetIdForValue("0 9 32 * *"),
@@ -112,6 +113,7 @@ console.log(JSON.stringify(cases));
     assert cases["shorthand"] == "custom"
     assert cases["invalidDaily"] == "custom"
     assert cases["invalidHourly"] == "custom"
+    assert cases["ambiguousSunday"] == "weekly"
     assert cases["invalidWeekly"] == "custom"
     assert cases["invalidMonthDayZero"] == "custom"
     assert cases["invalidMonthly"] == "custom"
@@ -213,6 +215,9 @@ const weekdaysSync = snapshot();
 elements.cronFormSchedule.value = '45 8 * * 3';
 elements.cronFormSchedule.dispatchEvent('input');
 const weeklySync = snapshot();
+elements.cronFormSchedule.value = '0 9 * * 7';
+elements.cronFormSchedule.dispatchEvent('input');
+const weeklyRawSundaySync = snapshot();
 elements.cronFormScheduleWeekday.value = '3';
 elements.cronFormScheduleWeekday.dispatchEvent('change');
 elements.cronFormScheduleHour.value = '8';
@@ -263,6 +268,7 @@ console.log(JSON.stringify({
   dailyWrite,
   weekdaysSync,
   weeklySync,
+  weeklyRawSundaySync,
   weeklyWrite,
   monthlySync,
   monthlyWrite,
@@ -304,6 +310,9 @@ console.log(JSON.stringify({
     assert result["weeklySync"]["schedule"] == "45 8 * * 3"
     assert result["weeklySync"]["weekdayFieldDisplay"] == ""
     assert result["weeklySync"]["monthDayFieldDisplay"] == "none"
+    assert result["weeklyRawSundaySync"]["preset"] == "weekly"
+    assert result["weeklyRawSundaySync"]["schedule"] == "0 9 * * 7"
+    assert result["weeklyRawSundaySync"]["weekday"] == "0"
     assert result["weeklyWrite"]["schedule"] == "45 8 * * 3"
     assert result["weeklyWrite"]["kind"] == "cron"
 
@@ -337,6 +346,45 @@ console.log(JSON.stringify({
     assert result["customSelectionPreserved"]["preset"] == "custom"
     assert result["customSelectionPreserved"]["schedule"] == "advanced: cron expression"
     assert result["customSelectionPreserved"]["paramsDisplay"] == "none"
+
+
+def test_cron_schedule_raw_warning_listener_survives_missing_preset_params():
+    script = _cron_schedule_source() + r"""
+const elements = {};
+function $(id) { return elements[id]; }
+function makeElement(initialValue = '') {
+  return {
+    value: initialValue,
+    style: { display: '' },
+    listeners: {},
+    addEventListener(type, handler) {
+      (this.listeners[type] || (this.listeners[type] = [])).push(handler);
+    },
+    dispatchEvent(eventType) {
+      const handlers = this.listeners[eventType] || [];
+      for (const handler of handlers) handler({ type: eventType, target: this });
+    },
+  };
+}
+elements.cronFormSchedule = makeElement();
+elements.cronFormSchedulePreset = makeElement('custom');
+elements.cronFormScheduleOnceWarning = { style: { display: 'none' } };
+
+_initCronSchedulePresetControls();
+elements.cronFormSchedule.value = '30m';
+elements.cronFormSchedule.dispatchEvent('input');
+
+console.log(JSON.stringify({
+  warning: elements.cronFormScheduleOnceWarning.style.display,
+  inputListeners: (elements.cronFormSchedule.listeners.input || []).length,
+  presetChangeListeners: (elements.cronFormSchedulePreset.listeners.change || []).length,
+}));
+"""
+    result = json.loads(_run_node(script))
+
+    assert result["warning"] == ""
+    assert result["inputListeners"] == 1
+    assert result["presetChangeListeners"] == 1
 
 
 def test_cron_schedule_custom_selection_preserves_raw_schedule_exactly():
@@ -433,7 +481,7 @@ def test_cron_form_surfaces_one_shot_warning_copy_markers_and_preset_markup():
     assert ".cron-schedule-preset-params" in style
     assert ".cron-schedule-preset-field" in style
     assert ".cron-schedule-preset-time-hint" in style
-    assert "Time is server time; cron runs server-side." in panels
+    assert "cron_schedule_time_hint" in panels
     assert "fields: ['minute']" in panels
     assert "fields: ['hour', 'minute']" in panels
     assert "fields: ['hour', 'minute', 'weekday']" in panels

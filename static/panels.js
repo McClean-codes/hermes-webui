@@ -507,7 +507,7 @@ function _cronSchedulePresetFieldEl(field) {
 function _cronSchedulePresetBounds(field) {
   if (field === 'hour') return { min: 0, max: 23 };
   if (field === 'minute') return { min: 0, max: 59 };
-  if (field === 'weekday') return { min: 0, max: 7 };
+  if (field === 'weekday') return { min: 0, max: 6 };
   if (field === 'monthDay') return { min: 1, max: 31 };
   return { min: 0, max: 999 };
 }
@@ -583,8 +583,8 @@ function _cronSchedulePresetValuesForSelection(presetId) {
   return {};
 }
 
-function _cronSchedulePresetValueForSelection(presetId) {
-  const values = _cronSchedulePresetValuesForSelection(presetId);
+function _cronSchedulePresetValueForSelection(presetId, selectedValues) {
+  const values = selectedValues || _cronSchedulePresetValuesForSelection(presetId);
   if (presetId === 'hourly') return `${values.minute} * * * *`;
   if (presetId === 'daily') return `${values.minute} ${values.hour} * * *`;
   if (presetId === 'weekdays') return `${values.minute} ${values.hour} * * 1-5`;
@@ -613,8 +613,8 @@ function _cronSchedulePresetStateForInput(value) {
   if (hour === '*' && dayOfMonth === '*' && month === '*' && dayOfWeek === '*') {
     return { presetId: 'hourly', minute };
   }
-  if (_cronSchedulePresetRawFieldInBounds('hour', hour) && dayOfMonth === '*' && month === '*' && _cronSchedulePresetRawFieldInBounds('weekday', dayOfWeek)) {
-    return { presetId: 'weekly', minute, hour, weekday: dayOfWeek };
+  if (_cronSchedulePresetRawFieldInBounds('hour', hour) && dayOfMonth === '*' && month === '*' && (_cronSchedulePresetRawFieldInBounds('weekday', dayOfWeek) || dayOfWeek === '7')) {
+    return { presetId: 'weekly', minute, hour, weekday: dayOfWeek === '7' ? '0' : dayOfWeek };
   }
   if (_cronSchedulePresetRawFieldInBounds('hour', hour) && _cronSchedulePresetRawFieldInBounds('monthDay', dayOfMonth) && month === '*' && dayOfWeek === '*') {
     return { presetId: 'monthly', minute, hour, monthDay: dayOfMonth };
@@ -647,9 +647,11 @@ function _applyCronSchedulePresetSelection() {
   if (!presetEl || !scheduleEl) return;
   const presetId = presetEl.value;
   if (presetId !== 'custom') {
-    scheduleEl.value = _cronSchedulePresetValueForSelection(presetId);
-    _cronSchedulePresetApplyValues(_cronSchedulePresetValuesForSelection(presetId));
-    _syncCronSchedulePresetAndWarning();
+    const values = _cronSchedulePresetValuesForSelection(presetId);
+    _cronSchedulePresetApplyValues(values);
+    scheduleEl.value = _cronSchedulePresetValueForSelection(presetId, values);
+    _cronSchedulePresetSyncVisibility(presetId);
+    _syncCronScheduleWarning();
     return;
   }
   _cronSchedulePresetSyncVisibility(presetId);
@@ -659,15 +661,16 @@ function _applyCronSchedulePresetSelection() {
 function _initCronSchedulePresetControls() {
   const presetEl = $('cronFormSchedulePreset');
   const scheduleEl = $('cronFormSchedule');
-  const presetParams = $('cronFormSchedulePresetParams');
-  if (!presetEl || !scheduleEl || !presetParams) return;
+  if (!presetEl || !scheduleEl) return;
   presetEl.addEventListener('change', _applyCronSchedulePresetSelection);
-  ['cronFormScheduleHour', 'cronFormScheduleMinute', 'cronFormScheduleWeekday', 'cronFormScheduleMonthDay'].forEach((id) => {
-    const el = $(id);
-    if (!el) return;
-    el.addEventListener('change', _applyCronSchedulePresetSelection);
-    el.addEventListener('input', _applyCronSchedulePresetSelection);
-  });
+  if ($('cronFormSchedulePresetParams')) {
+    ['cronFormScheduleHour', 'cronFormScheduleMinute', 'cronFormScheduleWeekday', 'cronFormScheduleMonthDay'].forEach((id) => {
+      const el = $(id);
+      if (!el) return;
+      el.addEventListener('change', _applyCronSchedulePresetSelection);
+      el.addEventListener('input', _applyCronSchedulePresetSelection);
+    });
+  }
   scheduleEl.addEventListener('input', _syncCronSchedulePresetAndWarning);
   scheduleEl.addEventListener('change', _syncCronSchedulePresetAndWarning);
   _syncCronSchedulePresetAndWarning();
@@ -1535,13 +1538,13 @@ function _renderCronForm({ name, schedule, prompt, deliver, profile, toast_notif
               </div>
               <div class="cron-schedule-preset-field" id="cronFormScheduleWeekdayField">
                 <label for="cronFormScheduleWeekday">${esc(t('cron_schedule_weekday_label') || 'Weekday')}</label>
-                <input type="number" id="cronFormScheduleWeekday" min="0" max="7" step="1" value="1" autocomplete="off">
+                <input type="number" id="cronFormScheduleWeekday" min="0" max="6" step="1" value="1" autocomplete="off">
               </div>
               <div class="cron-schedule-preset-field" id="cronFormScheduleMonthDayField">
                 <label for="cronFormScheduleMonthDay">${esc(t('cron_schedule_month_day_label') || 'Day')}</label>
                 <input type="number" id="cronFormScheduleMonthDay" min="1" max="31" step="1" value="1" autocomplete="off">
               </div>
-              <div class="detail-form-hint cron-schedule-preset-time-hint">Time is server time; cron runs server-side.</div>
+              <div class="detail-form-hint cron-schedule-preset-time-hint">${esc(t('cron_schedule_time_hint') || 'Time is server time; cron runs server-side.')}</div>
             </div>
           </div>
         </div>
