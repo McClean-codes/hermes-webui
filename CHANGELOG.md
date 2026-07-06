@@ -3,6 +3,10 @@
 
 ## [Unreleased]
 
+### Internal
+
+- **Shared layout-assertion helpers for browser tests.** Added `tests/_layout_helpers.py` (a reusable Playwright layout-lint: overlap / clipping / container-escape / degenerate-box / raw-i18n-key / a11y checks) plus its own coverage, so future per-issue browser tests can assert real rendered geometry without reimplementing the checks each time. Test-only; no production code changes. Thanks @rodboev. (#5668, #5665)
+
 ### Fixed
 
 - **Mobile drawer shows the dashboard link and extension nav-actions again.** On narrow screens (≤800px) the sidebar drawer was hiding the dashboard link and any extension-added nav-action icons, so you couldn't reach them on mobile. They now mirror into the drawer and stay in sync as they appear/disappear. Thanks @rodboev. (#5605, #5583)
