@@ -1,5 +1,6 @@
 """Tests for self-update diagnostics (api/updates.py)."""
 import os
+import sys
 import time
 from unittest.mock import MagicMock, patch
 
@@ -907,8 +908,6 @@ def test_select_apply_compare_ref_falls_through_when_latest_tag_is_not_ff_reacha
     "another git process seems to be running in this repository",
     "fatal: Unable to create '.git/FETCH_HEAD.lock': File exists.",
     "fatal: Unable to create '.git/refs/heads/main.lock': File exists.",
-    "could not open lock file",
-    "error: something about a lock file here",
 ])
 def test_is_git_lock_error_detects_lock_error(output):
     assert updates._is_git_lock_error(output) is True
@@ -1012,36 +1011,233 @@ def test_apply_update_non_lock_fetch_failure_does_not_include_lock_conflict(tmp_
 
 
 # ── apply_force_update lock cleanup tests ────────────────────────────────────
+#
+# v2 of PR #5688 removed the prior stale-lock cleanup loop from
+# apply_force_update entirely (CORE-1 from the gate cert: a force retry
+# for conflict/diverged preemptively deleted .git/**/*.lock before any
+# lock error was observed). Lock cleanup now lives ONLY in the explicit
+# /api/updates/clear_lock endpoint, gated by a holder probe.
+#
+# The contract under test here is therefore: apply_force_update must NEVER
+# touch git lock files. The check is implemented below as
+# test_apply_force_update_no_longer_touches_locks in the v2 tests block.
 
 
-def test_apply_force_update_removes_stale_lock_files(tmp_path):
-    """apply_force_update removes lock files older than 30 seconds."""
+def test_apply_force_update_no_longer_touches_locks(tmp_path, monkeypatch):
+    """apply_force_update must not iterate .git/**/*.lock any more (CORE-1 fix)."""
     (tmp_path / '.git').mkdir()
-    stale_lock = tmp_path / '.git' / 'index.lock'
-    stale_lock.write_text('')
-    old_mtime = time.time() - 60
-    os.utime(stale_lock, (old_mtime, old_mtime))
+    lock = tmp_path / '.git' / 'index.lock'
+    lock.write_text('')
+    old_mtime = time.time() - 999  # ancient mtime -- would have been removed pre-v2
+    os.utime(lock, (old_mtime, old_mtime))
 
-    with patch.object(updates, '_run_git', return_value=('', True)), \
-         patch.object(updates, 'REPO_ROOT', tmp_path), \
-         patch.object(updates, '_restart_blocker_snapshot', return_value={'restart_blocked': False, 'active_streams': 0, 'active_runs': 0}):
-        updates.apply_force_update('webui')
+    monkeypatch.setattr(updates, '_run_git',
+                         MagicMock(return_value=('', True)))
+    monkeypatch.setattr(updates, 'REPO_ROOT', tmp_path)
+    monkeypatch.setattr(
+        updates, '_restart_blocker_snapshot',
+        lambda: {'restart_blocked': False, 'active_streams': 0, 'active_runs': 0}
+    )
 
-    assert not stale_lock.exists(), "Stale lock file should have been removed"
+    updates.apply_force_update('webui')
+    assert lock.exists(), (
+        "apply_force_update must not remove locks; that is the clear_lock "
+        "endpoint's job"
+    )
 
 
-def test_apply_force_update_skips_recent_lock_file(tmp_path):
-    """apply_force_update does NOT remove lock files younger than 30 seconds."""
+# ── v2 tests for PR #5688 ──────────────────────────────────────────────────
+
+
+@pytest.mark.skipif(sys.platform.startswith('win'),
+                    reason='fcntl-based holder probe is POSIX-only')
+def test_is_lock_held_returns_false_when_no_other_holder(tmp_path):
+    """An unheld .git/index.lock passes the holder probe."""
+    lock = tmp_path / 'index.lock'
+    lock.write_text('')
+    assert updates._is_lock_held(lock) is False
+
+
+@pytest.mark.skipif(sys.platform.startswith('win'),
+                    reason='fcntl-based holder probe is POSIX-only')
+def test_is_lock_held_returns_true_when_other_process_holds(tmp_path):
+    """If an external process holds the lock via flock, the probe returns True."""
+    lock = tmp_path / 'index.lock'
+    lock.write_text('')
+    # Simulate a holder by acquiring flock ourselves from this process.
+    import fcntl
+    fd = os.open(str(lock), os.O_RDWR)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        # Now the probe (a different os.open + flock attempt) must fail
+        # and return True, refusing removal.
+        assert updates._is_lock_held(lock) is True
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
+
+
+def test_try_remove_lock_refuses_when_held(tmp_path, monkeypatch):
+    """_try_remove_lock must NEVER touch a file if a holder is detected."""
+    lock = tmp_path / 'index.lock'
+    lock.write_text('sentinel')
+
+    monkeypatch.setattr(
+        updates, '_is_lock_held', lambda p: True
+    )
+    ok, diag = updates._try_remove_lock(lock)
+    assert ok is False
+    assert diag == 'lock-held-by-another-process'
+    assert lock.exists(), "Lock must NOT be removed when a holder is detected"
+    assert lock.read_text() == 'sentinel', "Lock contents must NOT be modified"
+
+
+def test_try_remove_lock_succeeds_when_unheld(tmp_path, monkeypatch):
+    ok, diag = updates._try_remove_lock(tmp_path / 'nope')
+    assert ok is False and diag == 'no-such-file'
+
+    lock = tmp_path / 'index.lock'
+    lock.write_text('')
+    monkeypatch.setattr(updates, '_is_lock_held', lambda p: False)
+    ok, diag = updates._try_remove_lock(lock)
+    assert ok is True, diag
+    assert not lock.exists()
+
+
+def test_apply_clear_lock_removes_unheld_lock_and_runs_normal_update(tmp_path,
+                                                                     monkeypatch):
+    """clear_lock removes an unheld index.lock and re-runs the normal update path."""
     (tmp_path / '.git').mkdir()
-    recent_lock = tmp_path / '.git' / 'index.lock'
-    recent_lock.write_text('')
-    recent_mtime = time.time() - 5
-    os.utime(recent_lock, (recent_mtime, recent_mtime))
+    lock = tmp_path / '.git' / 'index.lock'
+    lock.write_text('')
+    monkeypatch.setattr(updates, '_is_lock_held', lambda p: False)
 
-    with patch.object(updates, '_run_git', return_value=('', True)), \
-         patch.object(updates, 'REPO_ROOT', tmp_path), \
-         patch.object(updates, '_restart_blocker_snapshot', return_value={'restart_blocked': False, 'active_streams': 0, 'active_runs': 0}):
-        updates.apply_force_update('webui')
+    fake_git_calls = []
 
-    assert recent_lock.exists(), "Recent lock file should NOT have been removed"
+    def fake_git(args, cwd, timeout=10):
+        fake_git_calls.append(args)
+        return '', True
+
+    monkeypatch.setattr(updates, '_run_git', fake_git)
+    monkeypatch.setattr(updates, 'REPO_ROOT', tmp_path)
+    monkeypatch.setattr(
+        updates, '_restart_blocker_snapshot',
+        lambda: {'restart_blocked': False, 'active_streams': 0, 'active_runs': 0}
+    )
+    monkeypatch.setattr(
+        updates, '_select_apply_compare_ref',
+        lambda path: 'origin/main'
+    )
+
+    result = updates.apply_clear_lock('webui')
+    assert result['ok'] is True, result
+    assert result.get('lock_recovery', {}).get('removed') == ['index.lock']
+    assert not lock.exists()
+
+
+def test_apply_clear_lock_refuses_when_lock_held(tmp_path, monkeypatch):
+    """If a holder is detected, clear_lock must NOT remove the lock and must
+    return a manual-instruction response."""
+    (tmp_path / '.git').mkdir()
+    lock = tmp_path / '.git' / 'index.lock'
+    lock.write_text('do-not-touch')
+
+    # Always appear held.
+    monkeypatch.setattr(updates, '_is_lock_held', lambda p: True)
+    monkeypatch.setattr(updates, 'REPO_ROOT', tmp_path)
+    monkeypatch.setattr(
+        updates, '_restart_blocker_snapshot',
+        lambda: {'restart_blocked': False, 'active_streams': 0, 'active_runs': 0}
+    )
+
+    result = updates.apply_clear_lock('webui')
+    assert result['ok'] is False
+    assert result.get('lock_held') is True
+    assert 'Cannot safely clear the lock' in result['message']
+    assert lock.exists(), "Lock must NOT be removed when held"
+    assert lock.read_text() == 'do-not-touch'
+
+
+def test_apply_update_pull_lock_restores_stash(tmp_path, monkeypatch):
+    """Greptile P1: a pull-lock error after stashing must restore the stash."""
+    (tmp_path / '.git').mkdir()
+    git_calls = []
+
+    def fake_git(args, cwd, timeout=10):
+        git_calls.append(args)
+        if args[0] == 'status':
+            # Mark the working tree as dirty so the apply path stashes first.
+            return ' M api/updates.py\n', True
+        if args[0] == 'stash' and args[1] == 'push':
+            return 'Saved working files\n', True
+        if args[0] == 'stash' and args[1] == 'pop':
+            return '', True
+        if args[0] == 'pull':
+            return "fatal: Unable to create '.git/index.lock': File exists.", False
+        return '', True
+
+    monkeypatch.setattr(updates, '_run_git', fake_git)
+    monkeypatch.setattr(updates, 'REPO_ROOT', tmp_path)
+    monkeypatch.setattr(
+        updates, '_select_apply_compare_ref',
+        lambda path: 'origin/main'
+    )
+
+    result = updates._apply_update_inner('webui')
+    assert result['ok'] is False
+    assert result.get('lock_conflict') is True
+    assert 'Local modifications were restored' in result['message'], (
+        f"Expected stash-restore note in message, got: {result['message']!r}"
+    )
+    # Confirm the recorded call list included `stash pop`.
+    assert any(call[0] == 'stash' and call[1] == 'pop' for call in git_calls), (
+        f"Expected git stash pop to be called; git_calls={git_calls!r}"
+    )
+
+
+@pytest.mark.parametrize('output,expected', [
+    # Tightened v2 signatures -- these match.
+    ("fatal: Unable to create '/app/.git/index.lock': File exists.", True),
+    ("fatal: Unable to create '.git/index.lock': File exists.", True),
+    ("fatal: Unable to create '.git/FETCH_HEAD.lock': File exists.", True),
+    ("another git process seems to be running in this repository", True),
+    ("fatal: Unable to create .git/index.lock", True),
+    # Greptile P2 false-positive class: ref transaction / "lock file lost"
+    # errors that mention "lock file" but are not stale-lock conditions.
+    ("fatal: lock file lost while flushing ref transaction", False),
+    # Plain non-lock errors.
+    ("", False),
+    (None, False),
+    ("fatal: could not resolve host", False),
+    ("fatal: not possible to fast-forward, aborting", False),
+])
+def test_v2_is_git_lock_error_signature_set(output, expected):
+    assert updates._is_git_lock_error(output) is expected
+
+
+def test_apply_update_pull_lock_no_stash_when_clean(tmp_path, monkeypatch):
+    """If the working tree was clean, no stash was pushed and no stash pop is needed."""
+    (tmp_path / '.git').mkdir()
+    git_calls = []
+
+    def fake_git(args, cwd, timeout=10):
+        git_calls.append(args)
+        if args[0] == 'status':
+            return '', True  # clean tree
+        if args[0] == 'pull':
+            return "fatal: Unable to create '.git/index.lock': File exists.", False
+        return '', True
+
+    monkeypatch.setattr(updates, '_run_git', fake_git)
+    monkeypatch.setattr(updates, 'REPO_ROOT', tmp_path)
+    monkeypatch.setattr(
+        updates, '_select_apply_compare_ref',
+        lambda path: 'origin/main'
+    )
+
+    result = updates._apply_update_inner('webui')
+    assert result['ok'] is False
+    assert result.get('lock_conflict') is True
+    # No stash pop on a clean pull-lock path.
+    assert not any(c[0] == 'stash' for c in git_calls)
 

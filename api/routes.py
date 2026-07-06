@@ -15043,6 +15043,20 @@ def handle_post(handler, parsed) -> bool:
 
         return j(handler, apply_force_update(target))
 
+    if parsed.path == "/api/updates/clear_lock":
+        # Non-destructive recovery for the stale .git/index.lock case: tries
+        # to clear the well-known short-lived git index lock and re-runs the
+        # normal (non-destructive) update flow. Refuses to remove locks that
+        # another process still holds (see apply_clear_lock for the holder
+        # probe). This is the *only* path on which git locks are removed;
+        # /api/updates/apply and /api/updates/force do not touch locks.
+        target = body.get("target", "")
+        if target not in ("webui", "agent"):
+            return bad(handler, 'target must be "webui" or "agent"')
+        from api.updates import apply_clear_lock
+
+        return j(handler, apply_clear_lock(target))
+
     if parsed.path == "/api/updates/summary":
         from api.updates import summarize_update_payload
 
