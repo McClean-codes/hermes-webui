@@ -376,11 +376,12 @@ def read_session_run_events(
         events: list[dict] = []
         expected_seq = 1
         try:
-            for _line_no, raw, retained_bytes in _iter_bounded_raw_jsonl_lines(
+            for _line_no, raw, total_bytes in _iter_bounded_raw_jsonl_lines(
                 path,
                 max_bytes=max_bytes,
                 retained_bytes=retained_bytes,
             ):
+                retained_bytes = total_bytes
                 if not raw.strip():
                     continue
                 try:
