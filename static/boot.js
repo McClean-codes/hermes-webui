@@ -919,6 +919,13 @@ function _micToastKeyForRecognitionError(error){
     sr.onstart=()=>{ _finalText=''; };
 
     sr.onresult=(event)=>{
+      // #5294: a real result means the continuity restarts are PRODUCTIVE, not a
+      // stolen-audio-session tight loop — reset the restart budget so a long
+      // dictation with many natural pauses isn't silently capped at
+      // _micMaxRestarts. The cap still guards the failure case: consecutive
+      // restarts that yield no speech (onend without an intervening onresult)
+      // keep incrementing and trip the bound.
+      _micRestartCount=0;
       let interim='';
       let final=_finalText;
       for(let i=event.resultIndex;i<event.results.length;i++){

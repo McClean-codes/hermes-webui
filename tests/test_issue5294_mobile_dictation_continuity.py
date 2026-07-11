@@ -114,7 +114,9 @@ const continuousAfterEnsure = recognition.continuous;
 // Simulate _startMicCapture's speech branch entering an active session.
 _activeCaptureMode = 'speech';
 _speechStopRequested = !!input.stopRequested;
-_micRestartCount = 0;
+// #5294 regression: allow pre-seeding the restart budget so we can prove a real
+// result resets it (a long productive dictation must not silently hit the cap).
+_micRestartCount = (typeof input.preRestartCount === 'number') ? input.preRestartCount : 0;
 window._micActive = true;
 recognition.start();          // initial start (mimics _startMicCapture)
 const startCallsAfterStart = recognition.startCalls;
@@ -131,6 +133,7 @@ const out = {
   continuousAfterEnsure: continuousAfterEnsure,
   restarted: recognition.startCalls > startCallsAfterStart,
   micActiveAfterPause: !!window._micActive,
+  restartCountAfter: _micRestartCount,
   taValue: ta.value,
   toasts: toasts,
 };
@@ -145,8 +148,10 @@ def driver_path(tmp_path_factory):
     return str(p)
 
 
-def _run(driver_path, *, coarse=False, store=None, stop_requested=False):
+def _run(driver_path, *, coarse=False, store=None, stop_requested=False, pre_restart_count=None):
     payload = {"coarse": coarse, "store": store or {}, "stopRequested": stop_requested}
+    if pre_restart_count is not None:
+        payload["preRestartCount"] = pre_restart_count
     result = subprocess.run(
         [NODE, driver_path, str(BOOT_JS_PATH), json.dumps(payload)],
         capture_output=True, text=True, timeout=30,
@@ -201,3 +206,20 @@ class TestMobileKeepsSessionAlive:
         out = _run(driver_path, coarse=False, store={"hermes-mic-continuous": "true"})
         assert out["continuousAfterEnsure"] is True
         assert out["restarted"] is True
+
+    def test_productive_result_resets_restart_budget(self, driver_path):
+        # A real result means the continuity restarts are PRODUCTIVE, so the
+        # restart budget must reset — otherwise a long mobile dictation with many
+        # natural pauses silently hits _micMaxRestarts and dies mid-session. Seed
+        # the count AT the cap: onresult must reset it to 0 so the ensuing pause
+        # still restarts. Without the reset, count stays at the cap and the
+        # session would NOT restart.
+        out = _run(driver_path, coarse=True, pre_restart_count=20)
+        assert out["restartCountAfter"] == 1, (
+            "a productive onresult must reset _micRestartCount (to 0), leaving 1 "
+            "after the subsequent natural-pause restart — not stay pinned at the cap"
+        )
+        assert out["restarted"] is True, (
+            "mobile dictation must keep restarting through pauses once a real "
+            "result has proven the session productive, even past the raw cap"
+        )
