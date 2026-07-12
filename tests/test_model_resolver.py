@@ -254,18 +254,32 @@ def test_custom_remote_preserves_advertised_full_id_5979():
     is the exact HTTP 400 b3nw hit ("Invalid model format ... grok-4.5"). The
     provenance rule preserves it because the endpoint advertised the full id.
     """
-    # Reproduce the data-driven trigger: grok-4.5 present in the x-ai catalog.
-    xai_catalog = config._PROVIDER_MODELS.get('x-ai')
-    assert isinstance(xai_catalog, list)
-    assert any(isinstance(m, dict) and m.get('id') == 'grok-4.5' for m in xai_catalog), (
-        "guard: grok-4.5 must be first-party for this regression test to be meaningful"
-    )
-    model, provider, base_url = _resolve_with_catalog(
-        'x-ai/grok-4.5',
-        advertised_ids=['x-ai/grok-4.5'],  # proxy advertises the FULL namespaced id
-        provider='custom',
-        base_url='https://proxy.example.com/v1',
-    )
+    # Deterministically reproduce the data-driven trigger regardless of the
+    # hermes-agent catalog version CI happens to run against: ensure grok-4.5 is
+    # first-party of x-ai so _is_first_party_model('x-ai','grok-4.5') is True (the
+    # condition under which the OLD code stripped). We stub it into the catalog
+    # rather than asserting the live catalog already contains it.
+    xai_catalog = list(config._PROVIDER_MODELS.get('x-ai') or [])
+    had_grok = any(isinstance(m, dict) and m.get('id') == 'grok-4.5' for m in xai_catalog)
+    old_xai = config._PROVIDER_MODELS.get('x-ai')
+    if not had_grok:
+        config._PROVIDER_MODELS['x-ai'] = xai_catalog + [{'id': 'grok-4.5', 'label': 'Grok 4.5'}]
+    try:
+        assert config._is_first_party_model('x-ai', 'grok-4.5'), (
+            "precondition: grok-4.5 must be first-party of x-ai for this regression"
+        )
+        model, provider, base_url = _resolve_with_catalog(
+            'x-ai/grok-4.5',
+            advertised_ids=['x-ai/grok-4.5'],  # proxy advertises the FULL namespaced id
+            provider='custom',
+            base_url='https://proxy.example.com/v1',
+        )
+    finally:
+        if not had_grok:
+            if old_xai is None:
+                config._PROVIDER_MODELS.pop('x-ai', None)
+            else:
+                config._PROVIDER_MODELS['x-ai'] = old_xai
     assert model == 'x-ai/grok-4.5', (
         f"advertised full id must be preserved for routing, got {model!r}"
     )
